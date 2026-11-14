@@ -1,0 +1,137 @@
+# src/scheduler/gate_rule.yaml
+# 阶段闸门与终止规则（architecture.md §4.3 原样落盘）
+#
+# 判定优先级：数值越大越先判；同一 from 的多条 gate 取第一条 checks 全为 true 的。
+# 终止类（terminations）在 gates 之前无条件先判。
+# args 里的数值是默认值，运行时由 RunConfig.limits 注入覆盖，避免两处阈值漂移。
+
+version: 1
+
+defaults:
+  on_no_match: stay
+  log_verdict: true
+
+terminations:
+  - id: T_BUDGET
+    check: { fn: budget_exhausted }
+    action: { type: escalate, phase: HUMAN_GATE, reason: budget_exhausted }
+  - id: T_HUMAN_ABORT
+    check: { fn: human_aborted }
+    action: { type: abort, phase: ABORTED, reason: human_abort }
+
+gates:
+  - id: G_P1_P2
+    from: P1
+    to: P2
+    priority: 10
+    checks:
+      - { fn: idea_valid, args: { min_chars: 10 } }
+    on_pass: { type: advance }
+    on_fail: { type: stay, reason: E_GATE_UNSATISFIED }
+
+  - id: G_P2_P3
+    from: P2
+    to: P3
+    priority: 10
+    checks:
+      - { fn: every_problem_classified }
+      - { fn: low_confidence_all_hands }
+    on_pass: { type: advance }
+    on_fail: { type: stay, reason: reclassify_required }
+
+  - id: G_P3_HUMAN
+    from: P3
+    to: HUMAN_GATE
+    priority: 40
+    checks:
+      - { fn: has_escalated_conflict }
+    on_pass: { type: wait_human, reason: conflict_escalated }
+
+  - id: G_P3_P4
+    from: P3
+    to: P4
+    priority: 10
+    checks:
+      - { fn: no_open_conflict, args: { or_round_limit: 3 } }
+    on_pass: { type: advance }
+    on_fail: { type: stay, increment_round: true, reason: open_conflicts_remain }
+
+  - id: G_P4_P5
+    from: P4
+    to: P5
+    priority: 10
+    checks:
+      - { fn: same_feature_set }
+      - { fn: comparison_rows_complete }
+    on_pass: { type: advance }
+    on_fail: { type: stay, reason: feature_set_mismatch }
+
+  - id: G_P5_HUMAN
+    from: P5
+    to: HUMAN_GATE
+    priority: 40
+    checks:
+      - { fn: revision_limit_reached, args: { limit: 3 } }
+    on_pass: { type: wait_human, reason: rework_limit }
+
+  - id: G_P5_REWORK_SOL
+    from: P5
+    to: P4
+    priority: 30
+    checks:
+      - { fn: score_not_pass }
+      - { fn: challenge_category_is, args: { category: solution } }
+    on_pass: { type: rework, increment: p5_revision_count, reason: solution_level_issue }
+
+  - id: G_P5_REWORK_REQ
+    from: P5
+    to: P3
+    priority: 30
+    checks:
+      - { fn: score_not_pass }
+      - { fn: challenge_category_is, args: { category: requirement } }
+    on_pass: { type: rework, increment: p5_revision_count, reason: requirement_level_issue, scoped_query: true }
+
+  - id: G_P5_P6
+    from: P5
+    to: P6
+    priority: 10
+    checks:
+      - { fn: score_pass, args: { min_total: 80, max_stddev: 12, require_no_veto: true } }
+    on_pass: { type: advance }
+    on_fail: { type: stay, reason: score_not_pass }
+
+  - id: G_P6_P7
+    from: P6
+    to: P7
+    priority: 10
+    checks:
+      - { fn: coverage_no_gap }
+      - { fn: all_have_acceptance }
+    on_pass: { type: advance }
+    # 暂定退回 P3 补齐；评审会 Q7 可能改为 stay P6 原地补需求（更省预算）
+    on_fail: { type: rework, to: P3, reason: coverage_gap_or_missing_acceptance }
+
+  - id: G_P7_BASELINE
+    from: P7
+    to: BASELINE_FROZEN
+    priority: 20
+    checks:
+      - { fn: human_signed }
+      - { fn: baseline_frozen }
+    on_pass: { type: freeze, reason: baseline_signed }
+    on_fail: { type: wait_human, reason: await_human_sign }
+
+  - id: G_P7_REWORK
+    from: P7
+    to: P3
+    priority: 15
+    checks:
+      - { fn: human_rejected }
+      - { fn: rework_below_limit, args: { limit: 2 } }
+    on_pass:
+      type: rework
+      increment: rework_count
+      broadcast_constraints_from: human_decision.reason
+      reason: human_rework
+    on_fail: { type: escalate, phase: HUMAN_GATE, reason: rework_limit }

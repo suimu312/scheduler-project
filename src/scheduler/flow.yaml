@@ -1,0 +1,80 @@
+# src/scheduler/flow.yaml
+# 七阶段流程定义（architecture.md §5.2 原样落盘）
+# 只描述编排：谁上场、吃哪些产物、吐哪些产物、上限、闸门。
+# 不描述提示词（归 B），不描述打分规则（归 D）。
+
+version: 1
+
+# 三套方案共用的同一组约束（P4 三个变体必须吃这一份，保证差异只在取舍）
+shared_constraints:
+  - "预算不超过既定上限"
+  - "必须覆盖同一份功能清单 FEA-*"
+  - "不做代码生成，只产出规格"
+
+stages:
+  P1:
+    owner: scheduler
+    human_input: true
+    agents: { on_stage: [], off_stage: [A1, A2, A3, A4, A5, A6] }
+    input_artifacts: []
+    output_artifacts: [idea_card]
+    gates: [G_P1_P2]
+    max_llm_calls: 0
+
+  P2:
+    owner: agents
+    agents: { on_stage: [], off_stage: [A1, A2, A3, A4, A5, A6], classifier: true }
+    input_artifacts: [idea_card]
+    output_artifacts: [problem_list, convocation_table]
+    gates: [G_P2_P3]
+    max_llm_calls: 4
+    fallback: { multi_label: true, low_confidence_all_hands: true, mandatory_role_binding: true }
+
+  P3:
+    owner: agents
+    agents: { on_stage: [A2, A1, A3, A4], off_stage: [A5, A6] }
+    input_artifacts: [idea_card, problem_list, convocation_table]
+    output_artifacts: [discussion_minutes, conflict_register]
+    gates: [G_P3_HUMAN, G_P3_P4]
+    max_llm_calls: 12
+    max_rounds: 3
+    protocol: [parallel_statement, directed_query, structured_vote, supplement_window]
+    limits: { max_query_pairs: 4, query_max_chars: 200, vote_reason_max_chars: 40, supplement_max_chars: 80 }
+
+  P4:
+    owner: solution_gen
+    agents: { on_stage: [A1, A3], off_stage: [A2, A4, A5, A6], mode: drafting }
+    input_artifacts: [problem_list, conflict_register]
+    output_artifacts: [solution_comparison, solutions]
+    gates: [G_P4_P5]
+    max_llm_calls: 6
+    variants: [SOL_A, SOL_B, SOL_C]
+
+  P5:
+    owner: conflict_review
+    agents: { on_stage: [A2, A3, A4, A5], off_stage: [A1], recuse_reason: author_must_not_review_own_work }
+    input_artifacts: [solution_comparison, conflict_register]
+    output_artifacts: [review_sheet, conflict_register]
+    gates: [G_P5_HUMAN, G_P5_REWORK_SOL, G_P5_REWORK_REQ, G_P5_P6]
+    max_llm_calls: 8
+    max_revisions: 3
+
+  P6:
+    owner: req_builder
+    agents: { on_stage: [A5, A6], off_stage: [A1, A2, A3, A4] }
+    input_artifacts: [solution_comparison, review_sheet, conflict_register]
+    output_artifacts: [requirement_spec, coverage_matrix]
+    gates: [G_P6_P7]
+    max_llm_calls: 4
+
+  P7:
+    owner: baseline_mgr
+    human_input: true
+    agents: { on_stage: [A6], off_stage: [A1, A2, A3, A4, A5], mode: checking }
+    # 注意：opinion_handling 是 P7 自己产出的（F 的意见处理表），不能同时出现在 input_artifacts 里，
+    # 否则 validate_flow 的「输入必须是前序产物」会判死；§5.2 草案此处有笔误，已按 §3.3 修正。
+    input_artifacts: [requirement_spec, coverage_matrix, solution_comparison]
+    output_artifacts: [opinion_handling, confirmation_sheet, baseline]
+    gates: [G_P7_BASELINE, G_P7_REWORK]
+    max_llm_calls: 2
+    max_reworks: 2
