@@ -1,0 +1,69 @@
+{
+  "_说明": "P3 立场陈述 + P5 五维打分的联调用样例。字段与 docs/review-conflict.md 一致。",
+  "run_id": "R0001",
+  "stances": [
+    {
+      "agent_id": "A2",
+      "topic_id": "module_split",
+      "position": "for",
+      "proposal": "按用户场景切模块",
+      "evidence_refs": [],
+      "quote_ref": "discussion_minutes:ST-002-01"
+    },
+    {
+      "agent_id": "A3",
+      "topic_id": "module_split",
+      "position": "against",
+      "proposal": "按技术分层切模块",
+      "evidence_refs": ["solution_comparison:FEA-001"],
+      "quote_ref": "discussion_minutes:ST-003-01"
+    },
+    {
+      "agent_id": "A1",
+      "topic_id": "milestone_grain",
+      "position": "for",
+      "proposal": "两周一迭代",
+      "evidence_refs": [],
+      "quote_ref": "discussion_minutes:ST-001-01"
+    },
+    {
+      "agent_id": "A2",
+      "topic_id": "milestone_grain",
+      "position": "against",
+      "proposal": "四周一里程碑",
+      "evidence_refs": [],
+      "quote_ref": "discussion_minutes:ST-002-02"
+    },
+    {
+      "agent_id": "A2",
+      "topic_id": "test_owner",
+      "position": "for",
+      "proposal": "开发自测为主",
+      "evidence_refs": [],
+      "quote_ref": "discussion_minutes:ST-002-03"
+    },
+    {
+      "agent_id": "A1",
+      "topic_id": "test_owner",
+      "position": "for",
+      "proposal": "保留独立测试环节",
+      "evidence_refs": [],
+      "quote_ref": "discussion_minutes:ST-001-02"
+    },
+    {
+      "agent_id": "A3",
+      "topic_id": "test_owner",
+      "position": "against",
+      "proposal": "测试全部外包",
+      "evidence_refs": [],
+      "quote_ref": "discussion_minutes:ST-003-02"
+    }
+  ],
+  "scores": {
+    "functional": 92,
+    "technical": 78,
+    "risk": 85,
+    "testability": 88
+  },
+  "veto": false
+}
