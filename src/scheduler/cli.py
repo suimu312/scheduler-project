@@ -40,8 +40,49 @@ SCENARIOS: dict[str, dict[str, Any]] = {
     "p5_veto": {"p5_mode": "veto"},
     "p6_gap": {"p6_gap": True},
     "p6_no_ac": {"p6_missing_acceptance": True},
+    "p6_cycle": {"p6_cycle": True},
+    "p6_uncovered": {"p6_uncovered": True},
+    "p6_wide": {"p6_wide": True},
     "budget": {"p3_burn": 30},
 }
+
+
+def _load_design_spec(path: str) -> dict[str, Any]:
+    """设计规格文件：.json / .yaml 直读；.md 按「键: 值」与「- 值」两种行解析。
+
+    规格是 P1 的输入物（老师作业的起点），字段口径见设计方案 §1.3：
+    product_name / goal / scope / constraints / features / non_goals。
+    """
+    p = Path(path)
+    if not p.exists():
+        raise SystemExit(f"设计规格文件不存在：{p}")
+    text = p.read_text(encoding="utf-8")
+    suffix = p.suffix.lower()
+    if suffix == ".json":
+        return json.loads(text)
+    if suffix in (".yaml", ".yml"):
+        import yaml
+
+        return yaml.safe_load(text) or {}
+
+    spec: dict[str, Any] = {}
+    last_key = ""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("- ") and last_key:
+            spec.setdefault(last_key, [])
+            if isinstance(spec[last_key], list):
+                spec[last_key].append(line[2:].strip())
+            continue
+        for sep in (":", "："):
+            if sep in line:
+                key, _, value = line.partition(sep)
+                last_key = key.strip()
+                spec[last_key] = value.strip()
+                break
+    return spec
 
 
 def _dump(obj: Any) -> str:
@@ -58,7 +99,7 @@ def _load_config(run_id: str, run_root: Path) -> RunConfig:
 def _new_config(args: argparse.Namespace, run_root: Path) -> RunConfig:
     cfg = RunConfig(
         run_id=args.run_id,
-        idea_text=args.idea,
+        idea_text=args.idea or "",
         author=args.author,
         flow_ref=str(REPO_ROOT / "src" / "scheduler" / "flow.yaml"),
         gate_ref=str(REPO_ROOT / "src" / "scheduler" / "gate_rule.yaml"),
@@ -76,13 +117,22 @@ def _new_config(args: argparse.Namespace, run_root: Path) -> RunConfig:
 def cmd_start(args: argparse.Namespace) -> int:
     run_root = Path(args.run_root)
     cfg = _new_config(args, run_root)
+    spec: dict[str, Any] = {}
+    if getattr(args, "design_spec", None):
+        spec = _load_design_spec(args.design_spec)
+    if not cfg.idea_text and not spec:
+        raise SystemExit("需要 --idea 或 --design-spec 之一：设计规格是这条流程的起点")
+    cfg.design_spec = spec
+    if spec:
+        cfg.idea_text = cfg.idea_text or str(spec.get("goal") or spec.get("product_name") or "")
+        cfg.idea_text = f"[design_spec] {spec.get('product_name') or ''} {cfg.idea_text}".strip()
     store = RunStore(run_root)
     store.ensure(cfg.run_id)
     store.save_config(cfg.run_id, cfg.to_dict())
     rt = Runtime.boot(cfg)
     state = rt.init_state()
     rt.store.save_state(state)
-    print(_dump({"run_id": cfg.run_id, "phase": state.phase, "status": state.status, "config": cfg.to_dict()}))
+    print(_dump({"run_id": cfg.run_id, "phase": state.phase, "status": state.status, "input_mode": "design_spec" if spec else "idea_text", "config": cfg.to_dict()}))
     return 0
 
 
@@ -148,13 +198,33 @@ def cmd_replay(args: argparse.Namespace) -> int:
 
 
 def cmd_viz(args: argparse.Namespace) -> int:
-    """A 侧的文本兜底视图（正式渲染建议交给 E，Q1）。"""
+    """执行可视化：默认文本兜底；--html 出甘特 + 依赖图（数据来自 schedule 产物）。"""
     run_root = Path(args.run_root)
+    store = RunStore(run_root)
+    state = store.load_state(args.run_id)
+    if getattr(args, "html", False) or getattr(args, "out", None):
+        sched = store.load_artifact(args.run_id, "schedule", state.artifacts_index if state else None) or {}
+        data = sched.get("data") or {}
+        if not data:
+            raise SystemExit(f"{args.run_id} 还没有 schedule 产物，先 run 到 P7")
+        from .taskgraph import render_html
+
+        out = Path(args.out) if args.out else run_root / args.run_id / "viz" / "schedule.html"
+        path = render_html(data, out)
+        print(_dump({"run_id": args.run_id, "html": path.as_posix(), "tasks": len(data.get("tasks") or []), "total_days": data.get("total_days"), "critical_path": (data.get("critical_path") or {}).get("task_ids")}))
+        return 0
+
     events = replay_events(args.run_id, str(run_root))
-    state = RunStore(run_root).load_state(args.run_id)
     lines = [f"run={args.run_id} status={state.status if state else '?'} phase={state.phase if state else '?'}"]
     if state:
         lines.append(f"budget={state.ledger.global_used}/{state.ledger.global_limit} rounds={state.ledger.rounds}")
+        sched = store.load_artifact(args.run_id, "schedule", state.artifacts_index) or {}
+        data = sched.get("data") or {}
+        if data:
+            lines.append(
+                f"schedule: tasks={len(data.get('tasks') or [])} waves={len(data.get('waves') or [])} "
+                f"days={data.get('total_days')} cp={' -> '.join((data.get('critical_path') or {}).get('task_ids') or [])}"
+            )
     for e in events:
         lines.append(f"{e['ts']} {e['stage']:<5} {e['event_type']:<16} {e['actor']:<16} {e['payload_ref']}")
     print("\n".join(lines))
@@ -178,7 +248,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("start", help="创建一次运行实例")
-    s.add_argument("--idea", required=True)
+    s.add_argument("--idea", default="", help="一句想法（与 --design-spec 二选一）")
+    s.add_argument("--design-spec", default=None, help="设计规格文件（.json/.yaml/.md），老师作业的起点")
     s.add_argument("--run-id", default=f"R{now_iso()[:10].replace('-', '')}")
     s.add_argument("--author", default="user")
     s.add_argument("--provider", default="mock", choices=["mock", "real"])
@@ -217,8 +288,10 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--run-id", required=True)
     rp.set_defaults(func=cmd_replay)
 
-    vz = sub.add_parser("viz", help="文本版执行可视化兜底")
+    vz = sub.add_parser("viz", help="执行可视化：默认文本，--html 出甘特+依赖图")
     vz.add_argument("--run-id", required=True)
+    vz.add_argument("--html", action="store_true", help="渲染 HTML（甘特图 + 依赖图）")
+    vz.add_argument("--out", default=None, help="HTML 输出路径，默认 runs/<run_id>/viz/schedule.html")
     vz.set_defaults(func=cmd_viz)
 
     sc = sub.add_parser("selfcheck", help="跑 architecture §15 的验收用例")

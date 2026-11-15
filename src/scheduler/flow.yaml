@@ -61,11 +61,14 @@ stages:
 
   P6:
     owner: req_builder
-    agents: { on_stage: [A5, A6], off_stage: [A1, A2, A3, A4] }
+    agents: { on_stage: [A5, A6], off_stage: [A1, A2, A3, A4], role: pm_agent }
     input_artifacts: [solution_comparison, review_sheet, conflict_register]
-    output_artifacts: [requirement_spec, coverage_matrix]
-    gates: [G_P6_P7]
+    # dev_task_list 是 PM Agent（A6）按设计规格落出来的开发任务清单（WBS），
+    # 与 §4.1 的 24 张执行卡（T-P1-01…T-P7-02）是两套东西：前者是被编排的对象，后者是派活单位。
+    output_artifacts: [requirement_spec, coverage_matrix, dev_task_list]
+    gates: [G_P6_HUMAN, G_P6_TASKS, G_P6_P7]
     max_llm_calls: 4
+    max_rounds: 3
 
   P7:
     owner: baseline_mgr
@@ -73,8 +76,10 @@ stages:
     agents: { on_stage: [A6], off_stage: [A1, A2, A3, A4, A5], mode: checking }
     # 注意：opinion_handling 是 P7 自己产出的（F 的意见处理表），不能同时出现在 input_artifacts 里，
     # 否则 validate_flow 的「输入必须是前序产物」会判死；§5.2 草案此处有笔误，已按 §3.3 修正。
-    input_artifacts: [requirement_spec, coverage_matrix, solution_comparison]
-    output_artifacts: [opinion_handling, confirmation_sheet, baseline]
+    # schedule 由编排层（A）在进入 P7 时用 taskgraph 纯代码算出，再交给 F 出确认单；
+    # 排期不属于模型产出，所以不计费，也不允许 F 自己改数。
+    input_artifacts: [requirement_spec, coverage_matrix, solution_comparison, dev_task_list]
+    output_artifacts: [opinion_handling, confirmation_sheet, baseline, schedule]
     gates: [G_P7_BASELINE, G_P7_REWORK]
     max_llm_calls: 2
     max_reworks: 2

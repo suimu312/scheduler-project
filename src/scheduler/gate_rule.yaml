@@ -101,6 +101,23 @@ gates:
     on_pass: { type: advance }
     on_fail: { type: stay, reason: score_not_pass }
 
+  # 任务图（dev_task）三道：先拦住成环/缺字段，再拦功能漏项，都过了才允许排期
+  - id: G_P6_HUMAN
+    from: P6
+    to: HUMAN_GATE
+    priority: 40
+    checks:
+      - { fn: round_limit_reached, args: { stage: P6, limit: 3 } }
+    on_pass: { type: wait_human, reason: task_graph_unresolved }
+
+  - id: G_P6_TASKS
+    from: P6
+    to: P6
+    priority: 20
+    checks:
+      - { fn: tasks_invalid }
+    on_pass: { type: stay, increment_round: true, reason: task_graph_invalid }
+
   - id: G_P6_P7
     from: P6
     to: P7
@@ -108,6 +125,8 @@ gates:
     checks:
       - { fn: coverage_no_gap }
       - { fn: all_have_acceptance }
+      - { fn: tasks_well_formed }
+      - { fn: every_feature_has_task }
     on_pass: { type: advance }
     # 暂定退回 P3 补齐；评审会 Q7 可能改为 stay P6 原地补需求（更省预算）
     on_fail: { type: rework, to: P3, reason: coverage_gap_or_missing_acceptance }

@@ -174,6 +174,71 @@ def case_p7_rework_limit(run_root: Path) -> dict[str, Any]:
     return _result("P7 打回至上限 → escalated", ok, {"status": res["status"], "reason": res["termination_reason"], "rework_count": state.ledger.rework_count, "constraints": state.constraints})
 
 
+def case_task_dep_cycle(run_root: Path) -> dict[str, Any]:
+    """A-14：dev_task 依赖成环 → G_P6_TASKS 命中，停在 P6 重新分解，不进入排期。"""
+    rt, state, _ = _fresh("taskcycle", run_root, {"p6_cycle": True})
+    rt.run(state, until="P6")
+    verdict = rt.step(state)
+    errors = ((verdict.get("checks") or [{}])[0].get("detail") or {}).get("errors") or []
+    codes = sorted({str(e.get("code")) for e in errors})
+    no_schedule = not (state.artifacts_index.get("schedule"))
+    ok = (
+        verdict["gate_id"] == "G_P6_TASKS"
+        and verdict["action"] == "stay"
+        and state.phase == "P6"
+        and "E_DEP_CYCLE" in codes
+        and no_schedule
+    )
+    return _result(
+        "A-14 依赖成环 → 中止排期并原地重新分解",
+        ok,
+        {"gate": verdict["gate_id"], "action": verdict["action"], "phase": state.phase, "codes": codes, "schedule_absent": no_schedule},
+    )
+
+
+def case_wave_parallel(run_root: Path) -> dict[str, Any]:
+    """A-15：六张卡互不依赖 → 一个波次并行 6 张，超上限记警告，排期照样算得出。"""
+    rt, state, _ = _fresh("wave", run_root, {"p6_wide": True})
+    res = rt.run(state, human_script=[{"action": "sign"}])
+    sched = rt.store.load_artifact(state.run_id, "schedule", state.artifacts_index) or {}
+    data = sched.get("data") or {}
+    widths = [int(w.get("width") or 0) for w in (data.get("waves") or [])]
+    codes = sorted({str(w.get("code")) for w in (data.get("warnings") or [])})
+    ok = (
+        res["status"] == "frozen"
+        and widths[:1] == [6]
+        and int(data.get("max_wave_width_actual") or 0) == 6
+        and "E_WAVE_TOO_WIDE" in codes
+    )
+    return _result(
+        "A-15 波次并行度 → 超上限被标记",
+        ok,
+        {"status": res["status"], "widths": widths, "warnings": codes, "limit": data.get("max_wave_width")},
+    )
+
+
+def case_critical_path(run_root: Path) -> dict[str, Any]:
+    """A-16：关键路径 = 001→002→004→007→008，总工期 12 天，5 个波次。"""
+    rt, state, _ = _fresh("cpath", run_root)
+    res = rt.run(state, human_script=[{"action": "sign"}])
+    sched = rt.store.load_artifact(state.run_id, "schedule", state.artifacts_index) or {}
+    data = sched.get("data") or {}
+    cp = data.get("critical_path") or {}
+    widths = [int(w.get("width") or 0) for w in (data.get("waves") or [])]
+    ok = (
+        res["status"] == "frozen"
+        and cp.get("task_ids") == ["DEV-001", "DEV-002", "DEV-004", "DEV-007", "DEV-008"]
+        and abs(float(cp.get("total_days") or 0) - 12.0) < 1e-9
+        and abs(float(data.get("total_days") or 0) - 12.0) < 1e-9
+        and widths == [1, 3, 2, 1, 1]
+    )
+    return _result(
+        "A-16 关键路径与总工期",
+        ok,
+        {"critical_path": cp.get("task_ids"), "total_days": data.get("total_days"), "widths": widths, "status": res["status"]},
+    )
+
+
 def case_budget(run_root: Path) -> dict[str, Any]:
     """预算耗尽：T_BUDGET 先于所有前进类闸门。"""
     rt, state, _ = _fresh("budget", run_root, budget=6)
@@ -225,6 +290,9 @@ CASES: list[tuple[str, Callable[[Path], dict[str, Any]]]] = [
     ("p5_revision_limit", case_p5_revision_limit),
     ("p6_gap", case_p6_gap),
     ("p6_acceptance", case_p6_missing_acceptance),
+    ("task_cycle", case_task_dep_cycle),
+    ("wave_width", case_wave_parallel),
+    ("critical_path", case_critical_path),
     ("p7_rework", case_p7_rework_limit),
     ("budget", case_budget),
     ("resume", case_resume),

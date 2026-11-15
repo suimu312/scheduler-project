@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from .context import AGENT_IDS, BudgetLedger, RunState
+from . import taskgraph
 
 GateFn = Callable[["GateEnv", dict[str, Any]], tuple[bool, dict[str, Any]]]
 REGISTRY: dict[str, GateFn] = {}
@@ -521,6 +522,49 @@ def all_have_acceptance(env: "GateEnv", args: dict[str, Any]) -> tuple[bool, dic
         if not acs:
             missing.append(_s(req.get("req_id") or req.get("id")))
     return (not missing), {"requirements": len(reqs), "checked": checked, "missing": missing}
+
+
+# ---------------------------------------------------------------- 任务图闸门（dev_task）
+
+def _dev_tasks(env: "GateEnv") -> list[dict[str, Any]]:
+    return taskgraph.tasks_of(env.data("dev_task_list"))
+
+
+@register(name="tasks_invalid")
+def tasks_invalid(env: "GateEnv", args: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+    """触发条件：任务清单本身有问题（缺字段 / ID 重复 / 依赖悬空 / 成环）。
+
+    这是「有错才入场」的反向闸门：命中就原地重新分解，不往下排期。
+    与设计文档 §4 的 C1/C2 对应。
+    """
+    tasks = _dev_tasks(env)
+    errors = taskgraph.validate_tasks(tasks)
+    return bool(errors), {
+        "tasks": len(tasks),
+        "errors": errors,
+        "codes": sorted({e["code"] for e in errors}),
+    }
+
+
+@register(name="tasks_well_formed")
+def tasks_well_formed(env: "GateEnv", args: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+    """正向闸门：八项字段齐全、依赖合法、无环；有环时把闭环写进 detail 便于复盘。"""
+    tasks = _dev_tasks(env)
+    errors = taskgraph.validate_tasks(tasks)
+    return (not errors), {"tasks": len(tasks), "errors": errors}
+
+
+@register(name="every_feature_has_task")
+def every_feature_has_task(env: "GateEnv", args: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+    """分解不能漏项：solution_comparison 里每个 FEA 至少要有一张 dev_task 承接。"""
+    tasks = _dev_tasks(env)
+    features = taskgraph.features_of(env.data("solution_comparison"))
+    missing = taskgraph.uncovered_features(tasks, features)
+    return (bool(features) and not missing), {
+        "features": features,
+        "uncovered": missing,
+        "tasks": len(tasks),
+    }
 
 
 # ---------------------------------------------------------------- 人工动作
