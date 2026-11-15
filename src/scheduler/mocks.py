@@ -35,6 +35,9 @@ SCENARIO: dict[str, Any] = {
     # P6
     "p6_gap": False,              # 覆盖矩阵有空行 → G_P6_P7 false
     "p6_missing_acceptance": False,
+    "p6_cycle": False,            # dev_task 依赖成环 → G_P6_TASKS 命中，原地重新分解
+    "p6_uncovered": False,        # 有功能点没有任务承接 → G_P6_P7 false
+    "p6_wide": False,             # 六张互不依赖的卡 → 波次并行度超上限（A-15）
     # P7
     "p7_frozen": True,
 }
@@ -58,6 +61,9 @@ def reset_scenario() -> None:
         p5_category="solution",
         p6_gap=False,
         p6_missing_acceptance=False,
+        p6_cycle=False,
+        p6_uncovered=False,
+        p6_wide=False,
         p7_frozen=True,
     )
 
@@ -318,7 +324,81 @@ def run_conflict_review(ctx: StageContext) -> StageResult:
     return _ok("P5", arts, 5, [{"event_type": "score.published", "actor": "conflict_review", "payload_ref": "review_sheet"}])
 
 
-# ---------------------------------------------------------------- P6 req_builder
+# ---------------------------------------------------------------- P6 req_builder（含 PM Agent 的 dev_task 分解）
+
+def _dev_tasks() -> list[dict[str, Any]]:
+    """PM Agent（A6）按设计规格分解出的开发任务清单（WBS）。
+
+    八项字段与 taskgraph.REQUIRED_FIELDS 对齐：任务号、模块、标题、依赖、工时、负责人、验收、功能追溯。
+    """
+    def task(tid, title, module, kind, fea, req, role, days, deps, acceptance):
+        return {
+            "task_id": tid,
+            "title": title,
+            "module": module,
+            "kind": kind,
+            "feature_refs": list(fea),
+            "requirement_refs": list(req),
+            "owner_role": role,
+            "estimate_days": days,
+            "depends_on": list(deps),
+            "acceptance": acceptance,
+            "deliverable": f"src/{module}",
+        }
+
+    if SCENARIO["p6_wide"]:
+        # 六张卡全部互不依赖 → 一个波次并行 6 张，用于验证并行度上限与资源冲突提示（A-15）
+        return [
+            task("DEV-101", "账号与登录", "auth", "backend", ["FEA-001"], ["REQ-001"], "dev_backend", 2, [],
+                 ["能注册并登录，会话可续"]),
+            task("DEV-102", "讨论频道骨架", "channel", "frontend", ["FEA-001"], ["REQ-001"], "dev_frontend", 2, [],
+                 ["能创建频道并看到列表"]),
+            task("DEV-103", "消息存储", "store", "backend", ["FEA-001"], ["REQ-001"], "dev_data", 2, [],
+                 ["消息落库，重启不丢"]),
+            task("DEV-104", "归档索引", "search", "backend", ["FEA-002"], ["REQ-002"], "dev_search", 2, [],
+                 ["按关键词能搜到历史讨论"]),
+            task("DEV-105", "文件关联", "attach", "integration", ["FEA-003"], ["REQ-003"], "dev_integration", 2, [],
+                 ["文件与结论能互链"]),
+            task("DEV-106", "验收脚本", "tests", "test", ["FEA-001", "FEA-002", "FEA-003"], ["REQ-001"], "dev_test", 2, [],
+                 ["主链路脚本可一键跑"]),
+        ]
+
+    tasks = [
+        task("DEV-001", "讨论频道的消息收发与存储", "messaging", "backend",
+             ["FEA-001"], ["REQ-001"], "dev_backend", 3, [],
+             ["发送一条讨论后能在该频道读到", "重启服务后历史消息不丢"]),
+        task("DEV-002", "讨论归档与全文检索", "archive", "backend",
+             ["FEA-002"], ["REQ-002"], "dev_backend", 4, ["DEV-001"],
+             ["能按项目归档讨论", "关键词能命中 90 天内的归档"]),
+        task("DEV-003", "讨论列表与详情页", "web-chat", "frontend",
+             ["FEA-001"], ["REQ-001"], "dev_frontend", 3, ["DEV-001"],
+             ["列表按时间倒序", "详情页可回复"]),
+        task("DEV-004", "归档筛选与搜索框", "web-archive", "frontend",
+             ["FEA-002"], ["REQ-002"], "dev_frontend", 2, ["DEV-003", "DEV-002"],
+             ["可按项目与时间筛选", "搜索无结果有兜底提示"]),
+        task("DEV-005", "文件与结论的关联登记", "attachment", "data",
+             ["FEA-003"], ["REQ-003"], "dev_data", 3, ["DEV-001"],
+             ["文件可挂到某条结论上", "关联关系可反查"]),
+        task("DEV-006", "外部成员的可见性边界", "permission", "integration",
+             ["FEA-003"], ["REQ-003"], "dev_integration", 2, ["DEV-005"],
+             ["外部成员看不到内部文件", "越权请求被拒并留痕"]),
+        task("DEV-007", "主链路验收用例", "tests", "test",
+             ["FEA-001", "FEA-002", "FEA-003"], ["REQ-001", "REQ-002", "REQ-003"], "dev_test", 2,
+             ["DEV-004", "DEV-006"],
+             ["主链路脚本全部通过", "失败用例能定位到具体卡"]),
+        task("DEV-008", "接口说明与部署手册", "docs", "docs",
+             ["FEA-001", "FEA-002", "FEA-003"], ["REQ-001", "REQ-002", "REQ-003"], "dev_docs", 1,
+             ["DEV-007"],
+             ["README 能按步骤跑起来", "接口字段与返回码齐全"]),
+    ]
+    if SCENARIO["p6_uncovered"]:
+        # FEA-003 没有任何任务承接 → 分解漏项
+        for t in tasks:
+            t["feature_refs"] = [f for f in t["feature_refs"] if f != "FEA-003"]
+    if SCENARIO["p6_cycle"]:
+        tasks[0]["depends_on"] = ["DEV-008"]  # 001 → 008 → 007 → 004 → 002 → 001，成环
+    return tasks
+
 
 def run_req_builder(ctx: StageContext) -> StageResult:
     adopted = []
@@ -361,14 +441,24 @@ def run_req_builder(ctx: StageContext) -> StageResult:
         "gap_count": gap_count,
         "coverage_rate": round((len(rows) - gap_count) / len(rows), 3),
     }
+    dev_tasks = {
+        "tasks": _dev_tasks(),
+        "source_ref": "idea_card:design_spec",
+        "decomposition_by": "A6/pm_agent",
+        "note": "开发任务清单（WBS），与 §4.1 的执行卡 T-P1-01…T-P7-02 不是同一套",
+    }
     arts = {
         "requirement_spec": make_artifact(
             {"requirements": reqs, "hard_validation": {"all_have_acceptance_criteria": all(r["acceptance_criteria"] for r in reqs)}},
             ctx.run_id, "P6", "req_builder",
         ),
         "coverage_matrix": make_artifact(coverage, ctx.run_id, "P6", "req_builder"),
+        "dev_task_list": make_artifact(dev_tasks, ctx.run_id, "P6", "req_builder"),
     }
-    return _ok("P6", arts, 3, [{"event_type": "coverage.computed", "actor": "req_builder", "payload_ref": "coverage_matrix"}])
+    return _ok("P6", arts, 3, [
+        {"event_type": "coverage.computed", "actor": "req_builder", "payload_ref": "coverage_matrix"},
+        {"event_type": "tasks.decomposed", "actor": "req_builder", "payload_ref": f"dev_task_list:{len(dev_tasks['tasks'])}"},
+    ])
 
 
 # ---------------------------------------------------------------- P7 baseline_mgr
@@ -376,9 +466,15 @@ def run_req_builder(ctx: StageContext) -> StageResult:
 def run_baseline_mgr(ctx: StageContext) -> StageResult:
     signed = any(str(d.get("action")) == "sign" for d in ctx.human_decisions)
     req_ids = [r.get("req_id") for r in (ctx.artifact_data("requirement_spec").get("requirements") or []) if isinstance(r, dict)]
+    sched = ctx.artifact_data("schedule")
+    tasks = sched.get("tasks") or []
     baseline = {
         "version": "v1.0",
         "requirement_ids": req_ids,
+        "task_ids": [t.get("task_id") for t in tasks],
+        "schedule_ref": f"schedule:W{len(sched.get('waves') or [])}",
+        "total_days": sched.get("total_days"),
+        "critical_path": (sched.get("critical_path") or {}).get("task_ids") or [],
         "signed_by": "user" if signed else None,
         "signed_at": now_iso() if signed else None,
         "frozen": bool(signed and SCENARIO["p7_frozen"]),
@@ -388,6 +484,11 @@ def run_baseline_mgr(ctx: StageContext) -> StageResult:
         "requirements": len(req_ids),
         "coverage_rate": ctx.artifact_data("coverage_matrix").get("coverage_rate"),
         "gap_count": ctx.artifact_data("coverage_matrix").get("gap_count"),
+        "tasks": len(tasks),
+        "waves": len(sched.get("waves") or []),
+        "total_days": sched.get("total_days"),
+        "critical_path": (sched.get("critical_path") or {}).get("task_ids") or [],
+        "parallel_width": sched.get("max_wave_width_actual"),
         "opinions": [],
     }
     arts = {

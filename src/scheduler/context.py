@@ -70,8 +70,8 @@ STAGE_OUTPUTS: dict[str, list[str]] = {
     "P3": ["discussion_minutes", "conflict_register"],
     "P4": ["solution_comparison", "solutions"],
     "P5": ["review_sheet", "conflict_register"],
-    "P6": ["requirement_spec", "coverage_matrix"],
-    "P7": ["opinion_handling", "confirmation_sheet", "baseline"],
+    "P6": ["requirement_spec", "coverage_matrix", "dev_task_list"],
+    "P7": ["opinion_handling", "confirmation_sheet", "baseline", "schedule"],
 }
 
 
@@ -295,6 +295,7 @@ DEFAULT_BUDGET: dict[str, Any] = {
 
 DEFAULT_LIMITS: dict[str, Any] = {
     "max_discussion_rounds": 3,
+    "max_task_rounds": 3,
     "max_p5_revisions": 3,
     "max_reworks": 2,
     "max_supplements_per_round": 3,
@@ -305,6 +306,7 @@ DEFAULT_LIMITS: dict[str, Any] = {
     "score_stddev_max": 12,
     "idea_min_chars": 10,
     "challenge_reject_rate": 0.6,
+    "max_wave_width": 4,
     "max_steps": 60,
 }
 
@@ -314,6 +316,7 @@ class RunConfig:
     run_id: str
     idea_text: str
     author: str = "user"
+    design_spec: dict[str, Any] = field(default_factory=dict)
     flow_ref: str = "flow.yaml"
     gate_ref: str = "gate_rule.yaml"
     agent_ref: str = "../agents/agent_config.yaml"
@@ -343,6 +346,7 @@ class RunConfig:
             run_id=str(obj["run_id"]),
             idea_text=str(obj.get("idea_text", "")),
             author=str(obj.get("author", "user")),
+            design_spec=dict(obj.get("design_spec") or {}),
             flow_ref=str(obj.get("flow_ref", "flow.yaml")),
             gate_ref=str(obj.get("gate_ref", "gate_rule.yaml")),
             agent_ref=str(obj.get("agent_ref", "../agents/agent_config.yaml")),
@@ -358,6 +362,7 @@ class RunConfig:
             "run_id": self.run_id,
             "idea_text": self.idea_text,
             "author": self.author,
+            "design_spec": dict(self.design_spec),
             "flow_ref": self.flow_ref,
             "gate_ref": self.gate_ref,
             "agent_ref": self.agent_ref,

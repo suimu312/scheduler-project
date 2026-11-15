@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import budget as budget_mod
+from . import taskgraph
 from .context import (
     STAGES,
     RunConfig,
@@ -142,7 +143,9 @@ class Runtime:
         if plan.get("on_stage"):
             emitter.emit("agent.on_stage", stage=phase, actor="scheduler", payload_ref=",".join(plan["on_stage"]))
 
-        result = self._invoke_module(state, spec, ctx, emitter)
+        pre_artifacts = self._precompute(state, phase, ctx)
+
+        result = self._invoke_module(state, spec, ctx, emitter, pre_artifacts)
         if result is None or state.phase == "ABORTED":
             state.status = "aborted"
             state.termination_reason = "error"
@@ -162,6 +165,11 @@ class Runtime:
         # 落盘 + 索引
         index = self.store.write_artifacts(state.run_id, result.artifacts)
         state.artifacts_index.update(index)
+
+        if "schedule" in pre_artifacts:
+            data = result.artifacts.get("schedule") or {}
+            days = ((data.get("data") or {}).get("total_days") if isinstance(data, dict) else None)
+            emitter.emit("schedule.computed", stage=phase, actor="scheduler", payload_ref=str(days))
 
         # 计费（重试也计费）
         budget_mod.charge(state.ledger, phase, result.budget_used)
@@ -186,7 +194,12 @@ class Runtime:
         return verdict
 
     def _invoke_module(
-        self, state: RunState, spec: Any, ctx: StageContext, emitter: EventEmitter
+        self,
+        state: RunState,
+        spec: Any,
+        ctx: StageContext,
+        emitter: EventEmitter,
+        pre_artifacts: dict[str, Any] | None = None,
     ) -> StageResult | None:
         """调用模块；失败重试 1 次，仍失败则终止（§8.4）。"""
         if state.phase == "P1":
@@ -217,6 +230,10 @@ class Runtime:
 
             if result.status != "ok":
                 break
+            # 编排层自己算出来的产物（目前是 P7 的 schedule）直接并进 result，
+            # 模块只需读它，不许改它：排期是代码算的，不是模型写的（§5.3）。
+            for name, art in (pre_artifacts or {}).items():
+                result.artifacts.setdefault(name, art)
             errors = validate_stage_result(result, spec.output_artifacts, state.run_id, state.phase)
             if not errors:
                 return result
@@ -238,11 +255,17 @@ class Runtime:
         return last_result
 
     def _run_p1(self, state: RunState) -> StageResult:
-        """P1 由编排层自己产 idea_card：想法是人给的，机器不代笔（§6.1）。"""
+        """P1 由编排层自己产 idea_card：想法是人给的，机器不代笔（§6.1）。
+
+        有设计规格（design_spec）时按规格进场，没有时退回一句想法；
+        两种输入后续阶段形状一致，P2 起不区分来源。
+        """
         idea = {
             "idea_text": self.config.idea_text,
             "author": self.config.author,
             "constraints": list(state.constraints),
+            "design_spec": dict(self.config.design_spec),
+            "input_mode": "design_spec" if self.config.design_spec else "idea_text",
         }
         return StageResult(
             stage="P1",
@@ -250,6 +273,28 @@ class Runtime:
             artifacts={"idea_card": make_artifact(idea, state.run_id, "P1", "scheduler")},
             budget_used=0,
         )
+
+    def _precompute(self, state: RunState, phase: str, ctx: StageContext) -> dict[str, Any]:
+        """编排层在调模块之前自己算的产物：目前只有 P7 的排期（schedule）。
+
+        排期是纯代码（taskgraph.build_schedule），不计费、不进模型上下文，
+        算完塞进 ctx.artifacts 让 F 出确认单时只读不改。
+        """
+        if phase != "P7":
+            return {}
+        tasks = taskgraph.tasks_of(ctx.artifact_data("dev_task_list"))
+        features = taskgraph.features_of(ctx.artifact_data("solution_comparison"))
+        spec_data = ctx.artifact_data("idea_card").get("design_spec") or {}
+        title = str(spec_data.get("product_name") or self.config.idea_text or "任务编排")[:24]
+        schedule = taskgraph.build_schedule(
+            tasks,
+            features,
+            meta={"run_id": state.run_id, "title": title, "baseline_version": "v1.0"},
+            max_wave_width=int(self.config.limit("max_wave_width", 4)),
+        )
+        art = make_artifact(schedule, state.run_id, "P7", "scheduler")
+        ctx.artifacts["schedule"] = art
+        return {"schedule": art}
 
     # ------------------------------------------------------------ 闸门
     def evaluate(self, state: RunState) -> dict[str, Any]:
