@@ -280,6 +280,59 @@ def case_schema_invalid(run_root: Path) -> dict[str, Any]:
     return _result("缺 meta 产物被拒收", ok, {"bad": errors_bad, "ok": errors_ok})
 
 
+def case_llm_injection(run_root: Path) -> dict[str, Any]:
+    """A-17 模型注入口：set_provider 即时生效；模块调 ctx.ask 自动计入本阶段账本。"""
+    from . import llm_gateway as lg
+    from . import modules as modules_mod
+
+    # 1) 直接注入：换 provider 不动调用点
+    gw = lg.LLMGateway()
+    hits: list[tuple[str, str]] = []
+
+    def fake(agent_id: str, prompt: str, stage: str) -> str:
+        hits.append((agent_id, stage))
+        return "OK"
+
+    gw.set_provider(fake, name="test")
+    out = gw.call("A2", "hi", "P3")
+    seam = out == "OK" and gw.name == "test" and hits == [("A2", "P3")] and gw.stage_calls("P3") == 1
+
+    # 2) 适配组员 B 的 HttpModel 形态（dict 进 dict 出）
+    class FakeModel:
+        def __call__(self, payload: dict[str, Any], timeout: int = 120) -> dict[str, str]:
+            return {"text": f"echo:{payload['agent_id']}:{payload['step']}"}
+
+    adapted = lg.adapt_model(FakeModel())("A4", "hi", "P4")
+
+    # 3) 运行时：模块不自报，靠 Gateway 实测进账；阶段外的调用不串账
+    rt, state, _ = _fresh("llm", run_root)
+    rt.set_provider(lambda agent_id, prompt, stage: "X", name="test")
+    rt.gateway.call("A2", "pre", "P2")
+
+    original = modules_mod.MOCK_REGISTRY["solution_gen"]
+
+    def counting_module(ctx):
+        res = original(ctx)
+        res.budget_used = 0
+        ctx.ask("A4", "方案一")
+        ctx.ask("A4", "方案二")
+        return res
+
+    modules_mod.MOCK_REGISTRY["solution_gen"] = counting_module
+    try:
+        rt.run(state, until="P5")
+    finally:
+        modules_mod.MOCK_REGISTRY["solution_gen"] = original
+
+    charged = state.ledger.used_of("P4")
+    ok = seam and adapted == "echo:A4:P4" and charged == 2
+    return _result(
+        "模型注入口可注入且自动计费",
+        ok,
+        {"seam": seam, "adapted": adapted, "p4_charged": charged, "gateway_calls": rt.gateway.calls},
+    )
+
+
 CASES: list[tuple[str, Callable[[Path], dict[str, Any]]]] = [
     ("normal", case_normal_flow),
     ("p3_escalate", case_p3_escalate),
@@ -297,6 +350,7 @@ CASES: list[tuple[str, Callable[[Path], dict[str, Any]]]] = [
     ("budget", case_budget),
     ("resume", case_resume),
     ("schema", case_schema_invalid),
+    ("llm_injection", case_llm_injection),
 ]
 
 

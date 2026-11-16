@@ -10,12 +10,15 @@
     python -m src.scheduler.cli selfcheck
 
 离线跑通用 --provider mock（默认）；接真实模块用 --provider real。
+模型来源用 --llm-provider 选：offline（默认，不联网）/ agents（组员 B 的 HttpModel，
+读 B_MODEL_ENDPOINT）/ 代码里 register_provider 登记的名字。换模型不改流程代码。
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -106,6 +109,7 @@ def _new_config(args: argparse.Namespace, run_root: Path) -> RunConfig:
         agent_ref=str(REPO_ROOT / "src" / "agents" / "agent_config.yaml"),
         run_root=str(run_root),
         provider=args.provider,
+        llm_provider=getattr(args, "llm_provider", "offline") or "offline",
     )
     if args.budget:
         cfg.budget["global_llm_calls"] = int(args.budget)
@@ -116,6 +120,10 @@ def _new_config(args: argparse.Namespace, run_root: Path) -> RunConfig:
 
 def cmd_start(args: argparse.Namespace) -> int:
     run_root = Path(args.run_root)
+    if getattr(args, "llm_endpoint", None):
+        os.environ["B_MODEL_ENDPOINT"] = args.llm_endpoint
+    if getattr(args, "llm_token", None):
+        os.environ["B_MODEL_TOKEN"] = args.llm_token
     cfg = _new_config(args, run_root)
     spec: dict[str, Any] = {}
     if getattr(args, "design_spec", None):
@@ -253,6 +261,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--run-id", default=f"R{now_iso()[:10].replace('-', '')}")
     s.add_argument("--author", default="user")
     s.add_argument("--provider", default="mock", choices=["mock", "real"])
+    s.add_argument("--llm-provider", default="offline", choices=["offline", "agents"],
+                   help="模型来源：offline 不联网；agents 用 src/agents/providers.HttpModel")
+    s.add_argument("--llm-endpoint", default=None, help="模型网关地址（等价 B_MODEL_ENDPOINT）")
+    s.add_argument("--llm-token", default=None, help="模型网关 token（等价 B_MODEL_TOKEN）")
     s.add_argument("--budget", type=int, default=None, help="全局 LLM 调用上限，默认 30")
     s.set_defaults(func=cmd_start)
 
