@@ -1,0 +1,270 @@
+{
+  "artifacts": {
+    "discussion_minutes": {
+      "meta": {
+        "schema_version": "1.0",
+        "run_id": "B-DEMO-001",
+        "stage": "P3",
+        "producer": "B",
+        "artifact_name": "discussion_minutes"
+      },
+      "data": {
+        "issue": {
+          "issue_id": "ISS-001",
+          "topic_id": "granularity",
+          "description": "是否先按最小交易闭环交付，再补充高级筛选等增强功能？"
+        },
+        "round": 1,
+        "completed_steps": [
+          "statement"
+        ],
+        "statements": [
+          {
+            "agent_id": "A1",
+            "position": "FOR",
+            "claim": "采用阶段性交付控制范围，先验证交易闭环的业务收益，增强项单独进入下一批验收。",
+            "source_refs": [
+              "material_catalog:MAT-002"
+            ],
+            "id": "ST-ISS-001-1-A1",
+            "issue_id": "ISS-001"
+          },
+          {
+            "agent_id": "A2",
+            "position": "FOR",
+            "claim": "沿学生操作顺序组织验收，让发布商品和联系卖方形成连贯体验，避免只有接口没有完整场景。",
+            "source_refs": [
+              "material_catalog:MAT-003"
+            ],
+            "id": "ST-ISS-001-1-A2",
+            "issue_id": "ISS-001"
+          },
+          {
+            "agent_id": "A3",
+            "position": "AGAINST",
+            "claim": "当前切法遗漏身份认证的接口前置，需先明确公共契约及依赖边，再讨论业务链路如何组合。",
+            "source_refs": [
+              "material_catalog:MAT-004"
+            ],
+            "id": "ST-ISS-001-1-A3",
+            "issue_id": "ISS-001"
+          },
+          {
+            "agent_id": "A4",
+            "position": "AGAINST",
+            "claim": "正常流程演示不足以证明安全，越权拦截与异常输入要列为独立验证工作，不能推迟到增强阶段。",
+            "source_refs": [
+              "material_catalog:MAT-005"
+            ],
+            "id": "ST-ISS-001-1-A4",
+            "issue_id": "ISS-001"
+          }
+        ],
+        "qa": [],
+        "votes": [],
+        "similarity_reports": [
+          {
+            "pair": [
+              "A1",
+              "A2"
+            ],
+            "semantic_score": null,
+            "lexical_score": 0.014084507042253521,
+            "degraded": true,
+            "flagged": false,
+            "retry": 0
+          },
+          {
+            "pair": [
+              "A1",
+              "A3"
+            ],
+            "semantic_score": null,
+            "lexical_score": 0.014285714285714285,
+            "degraded": true,
+            "flagged": false,
+            "retry": 0
+          },
+          {
+            "pair": [
+              "A2",
+              "A3"
+            ],
+            "semantic_score": null,
+            "lexical_score": 0.013513513513513514,
+            "degraded": true,
+            "flagged": false,
+            "retry": 0
+          },
+          {
+            "pair": [
+              "A1",
+              "A4"
+            ],
+            "semantic_score": null,
+            "lexical_score": 0.04285714285714286,
+            "degraded": true,
+            "flagged": false,
+            "retry": 0
+          },
+          {
+            "pair": [
+              "A2",
+              "A4"
+            ],
+            "semantic_score": null,
+            "lexical_score": 0.0,
+            "degraded": true,
+            "flagged": false,
+            "retry": 0
+          },
+          {
+            "pair": [
+              "A3",
+              "A4"
+            ],
+            "semantic_score": null,
+            "lexical_score": 0.0,
+            "degraded": true,
+            "flagged": false,
+            "retry": 0
+          }
+        ],
+        "guard_signals": [
+          {
+            "code": "SIMILARITY_DEGRADED",
+            "issue_id": "ISS-001",
+            "step": "statement",
+            "action": "lexical_detection_active"
+          }
+        ],
+        "conflict_candidates": [
+          {
+            "topic_id": "granularity",
+            "source_refs": [
+              "discussion_minutes:ST-ISS-001-1-A1",
+              "discussion_minutes:ST-ISS-001-1-A3"
+            ]
+          },
+          {
+            "topic_id": "granularity",
+            "source_refs": [
+              "discussion_minutes:ST-ISS-001-1-A1",
+              "discussion_minutes:ST-ISS-001-1-A4"
+            ]
+          },
+          {
+            "topic_id": "granularity",
+            "source_refs": [
+              "discussion_minutes:ST-ISS-001-1-A2",
+              "discussion_minutes:ST-ISS-001-1-A3"
+            ]
+          },
+          {
+            "topic_id": "granularity",
+            "source_refs": [
+              "discussion_minutes:ST-ISS-001-1-A2",
+              "discussion_minutes:ST-ISS-001-1-A4"
+            ]
+          }
+        ],
+        "extensions": {
+          "template_versions": {
+            "A1": "1.0.0",
+            "A2": "1.0.0",
+            "A3": "1.0.0",
+            "A4": "1.0.0",
+            "A5": "1.0.0",
+            "A6": "1.0.0"
+          },
+          "config_fingerprint": "ea2e83b3e9beb4e5400b5ebbb0fdd40afc06a1b96e0d0256b518b2746c19d777",
+          "similarity_mode": "lexical_degraded",
+          "model_attempts_this_step": 4
+        }
+      }
+    },
+    "guard_signals": {
+      "meta": {
+        "schema_version": "1.0",
+        "run_id": "B-DEMO-001",
+        "stage": "P3",
+        "producer": "B",
+        "artifact_name": "guard_signals"
+      },
+      "data": {
+        "items": [
+          {
+            "code": "SIMILARITY_DEGRADED",
+            "issue_id": "ISS-001",
+            "step": "statement",
+            "action": "lexical_detection_active"
+          }
+        ]
+      }
+    }
+  },
+  "events": [
+    {
+      "type": "agent.statement",
+      "payload": {
+        "agent_id": "A1",
+        "position": "FOR",
+        "claim": "采用阶段性交付控制范围，先验证交易闭环的业务收益，增强项单独进入下一批验收。",
+        "source_refs": [
+          "material_catalog:MAT-002"
+        ],
+        "id": "ST-ISS-001-1-A1",
+        "issue_id": "ISS-001"
+      }
+    },
+    {
+      "type": "agent.statement",
+      "payload": {
+        "agent_id": "A2",
+        "position": "FOR",
+        "claim": "沿学生操作顺序组织验收，让发布商品和联系卖方形成连贯体验，避免只有接口没有完整场景。",
+        "source_refs": [
+          "material_catalog:MAT-003"
+        ],
+        "id": "ST-ISS-001-1-A2",
+        "issue_id": "ISS-001"
+      }
+    },
+    {
+      "type": "agent.statement",
+      "payload": {
+        "agent_id": "A3",
+        "position": "AGAINST",
+        "claim": "当前切法遗漏身份认证的接口前置，需先明确公共契约及依赖边，再讨论业务链路如何组合。",
+        "source_refs": [
+          "material_catalog:MAT-004"
+        ],
+        "id": "ST-ISS-001-1-A3",
+        "issue_id": "ISS-001"
+      }
+    },
+    {
+      "type": "agent.statement",
+      "payload": {
+        "agent_id": "A4",
+        "position": "AGAINST",
+        "claim": "正常流程演示不足以证明安全，越权拦截与异常输入要列为独立验证工作，不能推迟到增强阶段。",
+        "source_refs": [
+          "material_catalog:MAT-005"
+        ],
+        "id": "ST-ISS-001-1-A4",
+        "issue_id": "ISS-001"
+      }
+    },
+    {
+      "type": "guard.signal",
+      "payload": {
+        "code": "SIMILARITY_DEGRADED",
+        "issue_id": "ISS-001",
+        "step": "statement",
+        "action": "lexical_detection_active"
+      }
+    }
+  ],
+  "usage": 4
+}

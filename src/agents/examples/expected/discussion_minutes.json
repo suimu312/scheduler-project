@@ -1,0 +1,289 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "B-DEMO-001",
+    "stage": "P3",
+    "producer": "B",
+    "artifact_name": "discussion_minutes"
+  },
+  "data": {
+    "issue": {
+      "issue_id": "ISS-001",
+      "topic_id": "granularity",
+      "description": "是否先按最小交易闭环交付，再补充高级筛选等增强功能？"
+    },
+    "round": 1,
+    "completed_steps": [
+      "statement",
+      "query",
+      "vote"
+    ],
+    "statements": [
+      {
+        "agent_id": "A1",
+        "position": "FOR",
+        "claim": "采用阶段性交付控制范围，先验证交易闭环的业务收益，增强项单独进入下一批验收。",
+        "source_refs": [
+          "material_catalog:MAT-002"
+        ],
+        "id": "ST-ISS-001-1-A1",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A2",
+        "position": "FOR",
+        "claim": "沿学生操作顺序组织验收，让发布商品和联系卖方形成连贯体验，避免只有接口没有完整场景。",
+        "source_refs": [
+          "material_catalog:MAT-003"
+        ],
+        "id": "ST-ISS-001-1-A2",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A3",
+        "position": "AGAINST",
+        "claim": "当前切法遗漏身份认证的接口前置，需先明确公共契约及依赖边，再讨论业务链路如何组合。",
+        "source_refs": [
+          "material_catalog:MAT-004"
+        ],
+        "id": "ST-ISS-001-1-A3",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A4",
+        "position": "AGAINST",
+        "claim": "正常流程演示不足以证明安全，越权拦截与异常输入要列为独立验证工作，不能推迟到增强阶段。",
+        "source_refs": [
+          "material_catalog:MAT-005"
+        ],
+        "id": "ST-ISS-001-1-A4",
+        "issue_id": "ISS-001"
+      }
+    ],
+    "qa": [
+      {
+        "id": "QA-ISS-001-1-A1",
+        "issue_id": "ISS-001",
+        "round": 1,
+        "from": "A3",
+        "to": "A1",
+        "target_ref": "discussion_minutes:ST-ISS-001-1-A1",
+        "conflict_ref": "conflict_register:CFL-001",
+        "question": "你提出“采用阶段性交付控制范围，先验证交易闭环的业务收益，增强项单独进入下一批验收。”。请说明该切分决策的适用条件、代价及可验证依据。",
+        "answer": "我接受把必要保障纳入第一阶段，范围控制只适用于增强项；以该阶段业务验收记录检查交付收益。",
+        "source_refs": [
+          "material_catalog:MAT-002"
+        ]
+      },
+      {
+        "id": "QA-ISS-001-1-A2",
+        "issue_id": "ISS-001",
+        "round": 1,
+        "from": "A3",
+        "to": "A2",
+        "target_ref": "discussion_minutes:ST-ISS-001-1-A2",
+        "conflict_ref": "conflict_register:CFL-001",
+        "question": "你提出“沿学生操作顺序组织验收，让发布商品和联系卖方形成连贯体验，避免只有接口没有完整场景。”。请说明该切分决策的适用条件、代价及可验证依据。",
+        "answer": "体验验收需要涵盖失败反馈，在交易路径中设置可观察结果；不能用模块完成状态代替用户操作成功。",
+        "source_refs": [
+          "material_catalog:MAT-003"
+        ]
+      },
+      {
+        "id": "QA-ISS-001-1-A3",
+        "issue_id": "ISS-001",
+        "round": 1,
+        "from": "A1",
+        "to": "A3",
+        "target_ref": "discussion_minutes:ST-ISS-001-1-A3",
+        "conflict_ref": "conflict_register:CFL-001",
+        "question": "你提出“当前切法遗漏身份认证的接口前置，需先明确公共契约及依赖边，再讨论业务链路如何组合。”。请说明该切分决策的适用条件、代价及可验证依据。",
+        "answer": "先确定身份接口契约，再允许发布和联系实现并行；通过集成测试确认前置返回值满足调用约定。",
+        "source_refs": [
+          "material_catalog:MAT-004"
+        ]
+      },
+      {
+        "id": "QA-ISS-001-1-A4",
+        "issue_id": "ISS-001",
+        "round": 1,
+        "from": "A1",
+        "to": "A4",
+        "target_ref": "discussion_minutes:ST-ISS-001-1-A4",
+        "conflict_ref": "conflict_register:CFL-001",
+        "question": "你提出“正常流程演示不足以证明安全，越权拦截与异常输入要列为独立验证工作，不能推迟到增强阶段。”。请说明该切分决策的适用条件、代价及可验证依据。",
+        "answer": "把非法输入和未授权访问作为明确的负向用例，只有拦截行为与错误反馈都符合标准才能验收。",
+        "source_refs": [
+          "material_catalog:MAT-005"
+        ]
+      }
+    ],
+    "votes": [
+      {
+        "agent_id": "A1",
+        "ballot": "FOR",
+        "reason": "支持优先交付闭环，并将必要保障列入同批范围；增强项另行安排可控制投入。",
+        "source_refs": [
+          "material_catalog:MAT-002"
+        ],
+        "id": "VOTE-ISS-001-1-A1",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A2",
+        "ballot": "FOR",
+        "reason": "支持沿场景验收，但要求保留失败反馈；这样能直接观察学生是否完成交易联系。",
+        "source_refs": [
+          "material_catalog:MAT-003"
+        ],
+        "id": "VOTE-ISS-001-1-A2",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A3",
+        "ballot": "FOR",
+        "reason": "在依赖契约补齐后支持该方向；执行顺序仍须由编排器按真实前置关系计算。",
+        "source_refs": [
+          "material_catalog:MAT-004"
+        ],
+        "id": "VOTE-ISS-001-1-A3",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A4",
+        "ballot": "AGAINST",
+        "reason": "仍反对当前未写清风险验收的命题；应补齐负向用例后再交 D 判断。",
+        "source_refs": [
+          "material_catalog:MAT-005"
+        ],
+        "id": "VOTE-ISS-001-1-A4",
+        "issue_id": "ISS-001"
+      }
+    ],
+    "similarity_reports": [
+      {
+        "pair": [
+          "A1",
+          "A2"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.014084507042253521,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A1",
+          "A3"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.014285714285714285,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A2",
+          "A3"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.013513513513513514,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A1",
+          "A4"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.04285714285714286,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A2",
+          "A4"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.0,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A3",
+          "A4"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.0,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      }
+    ],
+    "guard_signals": [
+      {
+        "code": "SIMILARITY_DEGRADED",
+        "issue_id": "ISS-001",
+        "step": "statement",
+        "action": "lexical_detection_active"
+      }
+    ],
+    "conflict_candidates": [
+      {
+        "topic_id": "granularity",
+        "source_refs": [
+          "discussion_minutes:ST-ISS-001-1-A1",
+          "discussion_minutes:ST-ISS-001-1-A3"
+        ]
+      },
+      {
+        "topic_id": "granularity",
+        "source_refs": [
+          "discussion_minutes:ST-ISS-001-1-A1",
+          "discussion_minutes:ST-ISS-001-1-A4"
+        ]
+      },
+      {
+        "topic_id": "granularity",
+        "source_refs": [
+          "discussion_minutes:ST-ISS-001-1-A2",
+          "discussion_minutes:ST-ISS-001-1-A3"
+        ]
+      },
+      {
+        "topic_id": "granularity",
+        "source_refs": [
+          "discussion_minutes:ST-ISS-001-1-A2",
+          "discussion_minutes:ST-ISS-001-1-A4"
+        ]
+      }
+    ],
+    "extensions": {
+      "template_versions": {
+        "A1": "1.0.0",
+        "A2": "1.0.0",
+        "A3": "1.0.0",
+        "A4": "1.0.0",
+        "A5": "1.0.0",
+        "A6": "1.0.0"
+      },
+      "config_fingerprint": "ea2e83b3e9beb4e5400b5ebbb0fdd40afc06a1b96e0d0256b518b2746c19d777",
+      "similarity_mode": "lexical_degraded",
+      "model_attempts_this_step": 4
+    },
+    "tally": {
+      "FOR": 3,
+      "AGAINST": 1,
+      "ABSTAIN": 0
+    },
+    "valid_vote_count": 4
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "version": "1.0.0",
+  "convocation": {"confidence_threshold": 0.75},
+  "discussion": {"timeout_seconds": 120, "max_workers": 3, "max_rounds": 3, "max_rewrites": 2},
+  "topics": {
+    "granularity": {"name": "拆分粒度", "aliases": ["卡太大", "拆分边界", "用户价值", "核心流程"]},
+    "dependency": {"name": "依赖方向", "aliases": ["前置条件", "接口依赖", "并行关系"]},
+    "estimate": {"name": "工时依据", "aliases": ["人天", "交付成本", "估算依据"]},
+    "acceptance": {"name": "验收口径", "aliases": ["可验证", "完成条件", "验收标准"]}
+  },
+  "roles": {
+    "A1": {
+      "name": "产品经理", "family": "deliberative", "version": "1.0.0",
+      "goal": "把设计规格转成有交付价值的开发任务，控制范围与节奏。",
+      "stance": {"must_defend": "交付价值、范围和成本约束", "must_challenge": "没有来源、价值不清或超出本期范围的任务"},
+      "knowledge": {"visible": ["spec", "business", "budget"], "exclusive": ["business", "budget"], "forbidden": ["architecture", "risk", "user_feedback", "acceptance_library"]},
+      "entry": {"stages": ["P2", "P3", "P6"], "exit_condition": "P5 回避，不评审自己提出的方案"}
+    },
+    "A2": {
+      "name": "用户代表", "family": "deliberative", "version": "1.0.0",
+      "goal": "维护核心用户流程，判断任务是否形成可观察的用户价值。",
+      "stance": {"must_defend": "核心场景走通、体验与可验收价值", "must_challenge": "只有技术步骤但无法解释其用户价值的任务切法"},
+      "knowledge": {"visible": ["spec", "user_feedback"], "exclusive": ["user_feedback"], "forbidden": ["budget", "architecture", "risk", "acceptance_library"]},
+      "entry": {"stages": ["P2", "P3", "P5"], "exit_condition": "本阶段输入输出完成后退场"}
+    },
+    "A3": {
+      "name": "技术架构师", "family": "deliberative", "version": "1.0.0",
+      "goal": "解释模块边界、接口前置条件和依赖方向，维护技术可执行性。",
+      "stance": {"must_defend": "可实现的依赖闭环和系统稳定性", "must_challenge": "忽略接口前置条件、循环依赖或没有依据的工时"},
+      "knowledge": {"visible": ["spec", "architecture"], "exclusive": ["architecture"], "forbidden": ["budget", "user_feedback", "risk", "acceptance_library"]},
+      "entry": {"stages": ["P2", "P3", "P4", "P5"], "exit_condition": "P2 无条件在场，后续按阶段产物退场"}
+    },
+    "A4": {
+      "name": "质量评审员", "family": "deliberative", "version": "1.0.0",
+      "goal": "维护任务验收、风险与安全底线，提出带证据的反方质疑。",
+      "stance": {"must_defend": "可测试性、安全和风险底线", "must_challenge": "没有验收、隐含风险或无故障回退措施的任务"},
+      "knowledge": {"visible": ["spec", "risk"], "exclusive": ["risk"], "forbidden": ["budget", "user_feedback", "architecture", "acceptance_library"]},
+      "entry": {"stages": ["P2", "P3", "P5"], "exit_condition": "P2 无条件在场；评审完成后退场"}
+    },
+    "A5": {
+      "name": "需求分析师", "family": "processing", "version": "1.0.0",
+      "goal": "结构化任务、校验验收口径和来源覆盖，不发表 P3 立场。",
+      "stance": {"must_defend": "字段完整与追溯一致", "must_challenge": "不适用；仅输出处理结果，不持立场不投票"},
+      "knowledge": {"visible": ["spec", "acceptance_library"], "exclusive": ["acceptance_library"], "forbidden": ["budget"]},
+      "entry": {"stages": ["P2", "P5", "P6"], "exit_condition": "P2 仅低置信度全员召集时辅助处理；P5 处理评分；P6 做覆盖校验"}
+    },
+    "A6": {
+      "name": "需求确认员", "family": "processing", "version": "1.0.0",
+      "goal": "整理确认单与基线材料，不代替人类签字。",
+      "stance": {"must_defend": "确认记录完整、冻结与变更可追溯", "must_challenge": "不适用；不持立场不投票"},
+      "knowledge": {"visible": ["spec", "confirmation"], "exclusive": ["confirmation"], "forbidden": ["budget"]},
+      "entry": {"stages": ["P2", "P7"], "exit_condition": "P2 仅低置信度全员召集时辅助处理；P7 等待人签署，由 F 冻结"}
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "B-DEMO-001",
+    "stage": "P3",
+    "producer": "D-DEMO-FIXTURE",
+    "artifact_name": "conflict_register"
+  },
+  "data": {
+    "items": [
+      {
+        "conflict_id": "CFL-001",
+        "extensions": {
+          "issue_id": "ISS-001"
+        },
+        "topic_id": "granularity",
+        "stances": [
+          {
+            "source_ref": "discussion_minutes:ST-ISS-001-1-A1"
+          },
+          {
+            "source_ref": "discussion_minutes:ST-ISS-001-1-A2"
+          },
+          {
+            "source_ref": "discussion_minutes:ST-ISS-001-1-A3"
+          },
+          {
+            "source_ref": "discussion_minutes:ST-ISS-001-1-A4"
+          }
+        ],
+        "status": "open",
+        "level": "L1_evidence"
+      }
+    ],
+    "extensions": {
+      "fixture_only": true
+    }
+  }
+}
