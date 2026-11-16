@@ -1,11 +1,30 @@
+# 运行产物：演示数据由 demo.py 现场生成，不把中间状态放进版本库
+runs/
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 环境与日志
 .env
 *.log
+
+# 视觉校验截图（属于交付环节，不属于代码）
+_shot*.png
+*.tmp
+
+# 编辑器 / 系统
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
 
 # 运行产物（自检/演练的 state.json、events.jsonl 不入库）
 runs/

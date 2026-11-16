@@ -31,6 +31,9 @@ class ModuleError(RuntimeError):
 
 
 def _import_real(module_id: str) -> ModuleFn:
+    if module_id == "agents":
+        from .agents_bridge import run
+        return run
     last_error: Exception | None = None
     for name in (f"src.{module_id}", module_id):
         try:

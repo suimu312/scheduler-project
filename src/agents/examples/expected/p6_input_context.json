@@ -1,0 +1,266 @@
+{
+  "run_id": "B-DEMO-001",
+  "stage": "P6",
+  "budget_left": 12,
+  "artifacts": {
+    "design_spec": {
+      "meta": {
+        "schema_version": "1.0",
+        "run_id": "B-DEMO-001",
+        "stage": "P1",
+        "producer": "A-DEMO-FIXTURE",
+        "artifact_name": "design_spec"
+      },
+      "data": {
+        "spec_id": "SPEC-001",
+        "product": "校园二手交易平台",
+        "scope_in": [
+          "发布商品",
+          "浏览商品",
+          "交易联系",
+          "高级筛选"
+        ],
+        "modules": [
+          {
+            "module_id": "MOD-001",
+            "name": "商品"
+          },
+          {
+            "module_id": "MOD-002",
+            "name": "交易"
+          }
+        ],
+        "features": [
+          {
+            "feature_id": "FEA-001",
+            "description": "学生发布商品",
+            "core_journey": true
+          },
+          {
+            "feature_id": "FEA-002",
+            "description": "学生浏览并联系卖方",
+            "core_journey": true
+          },
+          {
+            "feature_id": "FEA-003",
+            "description": "按多个条件高级筛选",
+            "user_value": "high"
+          },
+          {
+            "feature_id": "FEA-004",
+            "description": "页面主题装饰",
+            "user_value": "low"
+          }
+        ],
+        "constraints": [
+          {
+            "constraint_id": "CON-001",
+            "description": "发布与联系必须具备身份校验",
+            "mandatory": true
+          }
+        ]
+      }
+    },
+    "material_catalog": {
+      "meta": {
+        "schema_version": "1.0",
+        "run_id": "B-DEMO-001",
+        "stage": "P2",
+        "producer": "A-DEMO-FIXTURE",
+        "artifact_name": "material_catalog"
+      },
+      "data": {
+        "items": [
+          {
+            "source_ref": "material_catalog:MAT-001",
+            "category": "spec",
+            "text": "一期支持发布、浏览和联系；讨论先完成交易闭环再增强筛选的切法。",
+            "source_refs": [
+              "design_spec:SPEC-001"
+            ]
+          },
+          {
+            "source_ref": "material_catalog:MAT-002",
+            "category": "business",
+            "text": "演示目标是完成发布到联系的流程，不要求一次交付所有增强项。",
+            "source_refs": [
+              "design_spec:FEA-001",
+              "design_spec:FEA-002"
+            ]
+          },
+          {
+            "source_ref": "material_catalog:MAT-003",
+            "category": "user_feedback",
+            "text": "测试用户首先关心商品能否找到、能否联系卖方，希望按真实流程验收。",
+            "source_refs": [
+              "design_spec:FEA-002"
+            ]
+          },
+          {
+            "source_ref": "material_catalog:MAT-004",
+            "category": "architecture",
+            "text": "发布和联系依赖统一身份校验及接口契约，后续任务必须注明前置关系。",
+            "source_refs": [
+              "design_spec:CON-001"
+            ]
+          },
+          {
+            "source_ref": "material_catalog:MAT-005",
+            "category": "risk",
+            "text": "异常输入、越权联系需要独立验证，不能用正常流程通过替代。",
+            "source_refs": [
+              "design_spec:CON-001"
+            ]
+          },
+          {
+            "source_ref": "material_catalog:MAT-006",
+            "category": "acceptance_library",
+            "text": "验收要能观察结果并包含失败情况。",
+            "source_refs": [
+              "design_spec:SPEC-001"
+            ]
+          },
+          {
+            "source_ref": "material_catalog:MAT-007",
+            "category": "confirmation",
+            "text": "签署必须由人执行并关联基线。",
+            "source_refs": [
+              "design_spec:SPEC-001"
+            ]
+          }
+        ]
+      }
+    },
+    "classification": {
+      "meta": {
+        "schema_version": "1.0",
+        "run_id": "B-DEMO-001",
+        "stage": "P2",
+        "producer": "A-DEMO-FIXTURE",
+        "artifact_name": "classification"
+      },
+      "data": {
+        "items": [
+          {
+            "source_ref": "design_spec:FEA-001",
+            "categories": [
+              "functional"
+            ],
+            "confidence": 0.95,
+            "owner_role": "A2",
+            "responsibility": "发布链路"
+          },
+          {
+            "source_ref": "design_spec:FEA-002",
+            "categories": [
+              "functional",
+              "risk"
+            ],
+            "confidence": 0.6,
+            "owner_role": "A2",
+            "responsibility": "联系链路"
+          },
+          {
+            "source_ref": "design_spec:FEA-003",
+            "categories": [
+              "technical"
+            ],
+            "confidence": 0.9,
+            "owner_role": "A3",
+            "responsibility": "筛选接口"
+          },
+          {
+            "source_ref": "design_spec:FEA-004",
+            "categories": [
+              "cost"
+            ],
+            "confidence": 0.9,
+            "owner_role": "A1",
+            "responsibility": "增强体验"
+          }
+        ]
+      }
+    },
+    "dev_task_list": {
+      "meta": {
+        "schema_version": "1.0",
+        "run_id": "B-DEMO-001",
+        "stage": "P6",
+        "producer": "E-DEMO-FIXTURE",
+        "artifact_name": "dev_task_list"
+      },
+      "data": {
+        "items": [
+          {
+            "task_id": "DEV-001",
+            "source_refs": [
+              "design_spec:FEA-001"
+            ],
+            "estimate_days": 2,
+            "acceptance": [
+              "学生可提交商品并在列表查看"
+            ],
+            "module_id": "MOD-001",
+            "depends_on": [],
+            "owner_role": "A3",
+            "priority": "M"
+          },
+          {
+            "task_id": "DEV-002",
+            "source_refs": [
+              "design_spec:FEA-002",
+              "design_spec:CON-001"
+            ],
+            "estimate_days": 2,
+            "acceptance": [
+              "身份校验后能联系卖方；未登录不能联系"
+            ],
+            "module_id": "MOD-002",
+            "depends_on": [
+              "DEV-001"
+            ],
+            "owner_role": "A3",
+            "priority": "M"
+          },
+          {
+            "task_id": "DEV-003",
+            "source_refs": [
+              "design_spec:FEA-003"
+            ],
+            "estimate_days": 2,
+            "acceptance": [
+              "筛选结果符合指定条件"
+            ],
+            "module_id": "MOD-001",
+            "depends_on": [],
+            "owner_role": "A3",
+            "priority": "S"
+          },
+          {
+            "task_id": "DEV-004",
+            "source_refs": [
+              "design_spec:FEA-004"
+            ],
+            "estimate_days": 1,
+            "acceptance": [
+              "可切换主题"
+            ],
+            "module_id": "MOD-001",
+            "depends_on": [],
+            "owner_role": "A3",
+            "priority": "C"
+          }
+        ]
+      }
+    }
+  },
+  "config": {
+    "protocol_step": "statement",
+    "round": 1,
+    "issue": {
+      "issue_id": "ISS-001",
+      "topic_id": "granularity",
+      "description": "是否先按最小交易闭环交付，再补充高级筛选等增强功能？"
+    }
+  }
+}
