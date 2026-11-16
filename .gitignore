@@ -25,3 +25,6 @@ _shot*.png
 .idea/
 .DS_Store
 Thumbs.db
+
+# 运行产物（自检/演练的 state.json、events.jsonl 不入库）
+runs/

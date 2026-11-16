@@ -172,7 +172,7 @@ class RunState:
 
 > 约定：`data` 是各表正文（§0.5），`extensions` 放模块私有字段。**A 的校验器只校验 `meta` + §0.5 声明的必填字段**，不干涉 `extensions`。
 
-### 0.5 四张必须对齐的共享表（重点坑）
+### 0.5 六张必须对齐的共享表（重点坑）
 
 | 表 / artifact 名 | 主责 | 产出 | 消费 | 主键 | 必填字段（最小集） |
 | --- | --- | --- | --- | --- | --- |
@@ -180,6 +180,8 @@ class RunState:
 | `solution_comparison.json` | C | P4 | P5 打分 / P6 需求生成 / P7 确认单 | `feature_id` | `feature_items[]`, `rows[]`, `rows[].options`, `rows[].adopted` |
 | `requirement_spec.json` | E | P6 | P6 覆盖矩阵 / P7 基线 / F 变更 | `req_id` | `title`, `description`, `acceptance_criteria[]`, `priority`, `source_refs[]` |
 | `coverage_matrix.json` | E | P6 | P6→P7 闸门 / P7 确认页 | `source_id` | `rows[]`, `rows[].covered_by[]`, `coverage_rate` |
+| `dev_task_list.json` | PM Agent（E 模块内） | P6 | P6 任务图闸门 / P7 排期与确认单 | `task_id` | `title`, `module`, `owner_role`, `estimate_days`, `depends_on[]`, `acceptance[]`, `feature_refs[]` |
+| `schedule.json` | A（编排层纯代码） | P7 | P7 确认单 / 冻结基线 / 可视化 | 无（`waves[].wave_id`） | `tasks[]`, `waves[]`, `critical_path.task_ids[]`, `total_days` |
 
 #### 0.5.1 `conflict_register.json`（D 实现，A 只读）
 
@@ -292,17 +294,78 @@ class RunState:
 
 > 行 = 冲突清单 + 评审问题清单；列 = 需求条目；**空行即遗漏**。`gap_count == 0` 才允许进 P7。
 
-#### 0.5.5 其余产物（A 定义骨架，各模块实现）
+#### 0.5.5 `dev_task_list.json`（PM Agent 在 P6 产出，A 只读）
+
+> 这张表是老师作业里的「开发任务分解」落点：输入 design spec，PM Agent 拆出**产品开发任务（WBS）**。
+> 与 §4.1 的 24 张执行卡（`T-P1-01`…`T-P7-02`）**不是一套东西**：执行卡是编排器派活的最小单位，`DEV-*` 是被编排、被排期的对象。
+
+```json
+{
+  "meta": {"schema_version": "1.0", "run_id": "R0001", "stage": "P6", "produced_by": "req_builder", "created_at": "2026-11-10T14:27:00+08:00"},
+  "data": {
+    "tasks": [
+      {
+        "task_id": "DEV-001",
+        "title": "讨论频道的消息收发与存储",
+        "module": "messaging",
+        "kind": "backend",
+        "owner_role": "dev_backend",
+        "estimate_days": 3,
+        "depends_on": [],
+        "feature_refs": ["FEA-001"],
+        "requirement_refs": ["REQ-001"],
+        "acceptance": ["发送一条讨论后能在该频道读到", "重启服务后历史消息不丢"],
+        "deliverable": "src/messaging"
+      }
+    ],
+    "source_ref": "idea_card:design_spec",
+    "decomposition_by": "A6/pm_agent"
+  },
+  "extensions": {}
+}
+```
+
+八项字段缺一不可：`task_id` `title` `module` `owner_role` `estimate_days` `depends_on` `acceptance` `feature_refs`。`depends_on` 允许为空数组（首波次任务本来没有前驱），但字段必须在。
+
+#### 0.5.6 `schedule.json`（A 产出，F 只读）
+
+> 纯代码算出来的，**不进模型上下文、不计 LLM 预算**。P7 只负责把数读进确认单，不许改数；要改工时或拆卡就退回 P6 重新分解。
+
+```json
+{
+  "meta": {"schema_version": "1.0", "run_id": "R0001", "stage": "P7", "produced_by": "scheduler", "created_at": "2026-11-10T14:40:00+08:00"},
+  "data": {
+    "valid": true,
+    "errors": [],
+    "warnings": [{"code": "W_ROLE_OVERLOAD", "task_ids": ["DEV-003", "DEV-004"], "message": "同一波次同一角色并行 2 张"}],
+    "tasks": [{"task_id": "DEV-001", "es": 0, "ef": 3, "slack": 0, "critical": true}],
+    "waves": [{"wave_id": "W1", "width": 1, "task_ids": ["DEV-001"], "start_day": 0, "end_day": 3}],
+    "critical_path": {"task_ids": ["DEV-001", "DEV-002", "DEV-004", "DEV-007", "DEV-008"], "total_days": 12},
+    "critical_tasks": ["DEV-001", "DEV-002", "DEV-004", "DEV-007", "DEV-008"],
+    "slack": {"DEV-003": 1},
+    "resource_conflicts": [{"wave_id": "W2", "owner_role": "dev_backend", "task_ids": ["DEV-002", "DEV-003"]}],
+    "max_wave_width": 4,
+    "max_wave_width_actual": 3,
+    "total_days": 12,
+    "summary": "8 张卡 / 5 个波次 / 总工期 12 天 / 关键路径 5 张"
+  },
+  "extensions": {}
+}
+```
+
+排期口径：`depends_on` 直接决定拓扑波次（同波次可并行）；工期按 `estimate_days` 累加；关键路径用 CPM（正推 ES/EF、逆推 LS/LF、slack=0 且贴最长链）；`max_wave_width` 只做**告警**不做拦截——并行度超上限说明分解该拆细，责任在 PM，不在编排器。
+
+#### 0.5.7 其余产物（A 定义骨架，各模块实现）
 
 | artifact | 主责 | 阶段 | 关键字段（最小集） |
 | --- | --- | --- | --- |
-| `idea_card.json` | A | P1 | `idea_text`, `author`, `constraints[]` |
+| `idea_card.json` | A | P1 | `idea_text`, `author`, `constraints[]`, `design_spec`, `input_mode`(`design_spec`/`idea_text`) |
 | `problem_list.json` | A | P2 | `problems[]`: `problem_id`, `types[]`(ProblemType), `confidence`, `owner_roles[]`(AgentId) |
 | `convocation_table.json` | A | P2 | `by_problem`, `on_stage[]`, `reason`(含 `low_confidence_all_hands`) |
 | `discussion_minutes.json` | B | P3 | `statements[]`, `query_pairs[]`, `votes[]`, `supplements[]` |
 | `review_sheet.json` | D | P5 | `challenges[]`: `challenge_id`, `description`, `impact_ref`, `severity`, `consequence`, `rejected`; `scores[]`, `weighted_total`, `stddev`, `veto` |
 | `opinion_handling.json` | F | P7 | `opinions[]`: `ref`, `decision`(`adopt`/`reject`/`pending`), `reason` |
-| `baseline.json` | F | P7 | `version`, `requirement_ids[]`, `signed_by`, `signed_at`, `frozen` |
+| `baseline.json` | F | P7 | `version`, `requirement_ids[]`, `task_ids[]`, `schedule_ref`, `total_days`, `critical_path[]`, `signed_by`, `signed_at`, `frozen` |
 | `change_request.json` | F | P7 后 | `cr_id`, `from_version`, `impact_analysis`, `review_result`, `to_version` |
 
 ### 0.6 兼容性硬规则（评审会逐条签字）
@@ -483,8 +546,8 @@ stateDiagram-v2
 | P3 | B + D | A2,A1,A3,A4 | `idea_card`, `problem_list`, `convocation_table` | `discussion_minutes`, `conflict_register` | →P4 / →P3 / →HUMAN_GATE / →ABORTED |
 | P4 | C | A1,A3（主笔，非协商） | `conflict_register`, `problem_list` | `solution_comparison`, 三套方案 | →P5 / stay |
 | P5 | D | A2,A3,A4,A5（A1 回避） | `solution_comparison`, `conflict_register` | `review_sheet`, `conflict_register`(更新裁决) | →P6 / →P4 / →P3 / →HUMAN_GATE |
-| P6 | E | A5,A6 | `solution_comparison`, `review_sheet`, `conflict_register` | `requirement_spec`, `coverage_matrix` | →P7 / →P3 |
-| P7 | F + 人 | A6 | 上述全部 | `opinion_handling`, `confirmation_sheet`, `baseline` | →BASELINE_FROZEN / →P3 / →ABORTED |
+| P6 | E | A5,A6 | `solution_comparison`, `review_sheet`, `conflict_register` | `requirement_spec`, `coverage_matrix`, `dev_task_list` | →P7 / →P3 / stay P6 / →HUMAN_GATE |
+| P7 | F + 人 + A | A6 | 上述全部 + `dev_task_list` | `opinion_handling`, `confirmation_sheet`, `baseline`, `schedule`(A 算) | →BASELINE_FROZEN / →P3 / →ABORTED |
 
 ### 3.4 状态快照与恢复
 
@@ -527,7 +590,9 @@ stateDiagram-v2
 | `G_P5_REWORK_SOL` | P5→P4 | 未通过且问题 `category == solution`（选型不当、成本估高） | `review_sheet.challenges[]` | 代码 | — |
 | `G_P5_REWORK_REQ` | P5→P3 | 未通过且问题 `category == requirement`（用户要的和能给的矛盾） | `review_sheet.challenges[]` | 代码 | 只针对该冲突开一对质询 |
 | `G_P5_HUMAN` | P5→HUMAN_GATE | `p5_revision_count >= 3` **或** 预算耗尽 | ledger | 代码 | — |
-| `G_P6_P7` | P6→P7 | `coverage_matrix.gap_count == 0` **且** 所有 `REQ` 都有非空 `acceptance_criteria` | `coverage_matrix`, `requirement_spec` | 代码 | →P3 或 stay P6 补需求 |
+| `G_P6_P7` | P6→P7 | `coverage_matrix.gap_count == 0` **且** 所有 `REQ` 都有非空 `acceptance_criteria` **且** 任务图八项字段齐全无环 **且** 每个 `FEA` 都有任务承接 | `coverage_matrix`, `requirement_spec`, `dev_task_list`, `solution_comparison` | 代码 | →P3 或 stay P6 补需求 |
+| `G_P6_TASKS` | P6→P6 | `dev_task_list` 缺字段 / ID 重复 / 依赖悬空 / 依赖成环 | `dev_task_list` | 代码 | stay P6 + `increment_round`，round 到 3 转 `G_P6_HUMAN` |
+| `G_P6_HUMAN` | P6→HUMAN_GATE | 任务图原地整改满 3 轮仍未成形 | `RunState.ledger.rounds` | 代码 | wait_human（reason `task_graph_unresolved`） |
 | `G_P7_BASELINE` | P7→BASELINE_FROZEN | 存在 `HumanDecision(action=sign)` 且 `baseline.frozen == true` | `human_decisions`, `baseline` | 代码（校验人动作） | wait_human |
 | `G_P7_REWORK` | P7→P3 | `HumanDecision(action=reject)` 且 `rework_count < 2` | `human_decisions` | 代码 | 超 2 次 → escalated |
 
@@ -550,6 +615,9 @@ stateDiagram-v2
 | `challenge_category_is` | `(artifacts, args) -> bool` | `review_sheet.challenges[]`（D） | A |
 | `coverage_no_gap` | `(artifacts, args) -> bool` | `coverage_matrix`（E） | A |
 | `all_have_acceptance` | `(artifacts, args) -> bool` | `requirement_spec`（E） | A |
+| `tasks_invalid`（反向触发：有错才入场） | `(artifacts, args) -> bool` | `dev_task_list`（E/PM） | A |
+| `tasks_well_formed` | `(artifacts, args) -> bool` | `dev_task_list`（E/PM） | A |
+| `every_feature_has_task` | `(artifacts, args) -> bool` | `dev_task_list` + `solution_comparison.feature_items` | A |
 | `revision_limit_reached` / `budget_exhausted` / `rework_below_limit` / `round_limit_reached` | `(ledger, args) -> bool` | ledger | A |
 | `human_signed` / `human_rejected` / `human_aborted` / `baseline_frozen` | `(state, args) -> bool` | `human_decisions`、`baseline`（F 写入，A 校验） | A |
 
@@ -653,6 +721,22 @@ gates:
       - {fn: score_pass, args: {min_total: 80, max_stddev: 12, require_no_veto: true}}
     on_pass: {type: advance}
 
+  - id: G_P6_HUMAN
+    from: P6
+    to: HUMAN_GATE
+    priority: 40
+    checks:
+      - {fn: round_limit_reached, args: {stage: P6, limit: 3}}
+    on_pass: {type: wait_human, reason: task_graph_unresolved}
+
+  - id: G_P6_TASKS
+    from: P6
+    to: P6
+    priority: 20
+    checks:
+      - {fn: tasks_invalid}
+    on_pass: {type: stay, increment_round: true, reason: task_graph_invalid}
+
   - id: G_P6_P7
     from: P6
     to: P7
@@ -660,6 +744,8 @@ gates:
     checks:
       - {fn: coverage_no_gap}
       - {fn: all_have_acceptance}
+      - {fn: tasks_well_formed}
+      - {fn: every_feature_has_task}
     on_pass: {type: advance}
     # 暂定退回 P3 补齐；评审会 Q7 可能改为 stay P6 原地补需求（更省预算）
     on_fail: {type: rework, to: P3, reason: coverage_gap_or_missing_acceptance}
@@ -799,17 +885,19 @@ stages:
     max_revisions: 3
   P6:
     owner: req_builder
-    agents: {on_stage: [A5, A6], off_stage: [A1, A2, A3, A4]}
+    agents: {on_stage: [A5, A6], off_stage: [A1, A2, A3, A4], role: pm_agent}
     input_artifacts: [solution_comparison, review_sheet, conflict_register]
-    output_artifacts: [requirement_spec, coverage_matrix]
-    gates: [G_P6_P7]
+    output_artifacts: [requirement_spec, coverage_matrix, dev_task_list]
+    gates: [G_P6_HUMAN, G_P6_TASKS, G_P6_P7]
     max_llm_calls: 4
+    max_rounds: 3
   P7:
     owner: baseline_mgr
     human_input: true
     agents: {on_stage: [A6], off_stage: [A1, A2, A3, A4, A5], mode: checking}
-    input_artifacts: [requirement_spec, coverage_matrix, opinion_handling, solution_comparison]
-    output_artifacts: [confirmation_sheet, baseline]
+    # opinion_handling 是 P7 自己的产出，不能出现在输入里；schedule 由编排层在进入 P7 时算好
+    input_artifacts: [requirement_spec, coverage_matrix, solution_comparison, dev_task_list]
+    output_artifacts: [opinion_handling, confirmation_sheet, baseline, schedule]
     gates: [G_P7_BASELINE, G_P7_REWORK]
     max_llm_calls: 2
     max_reworks: 2
@@ -1084,13 +1172,13 @@ sequenceDiagram
 ### 9.2 CLI 设计（`src/scheduler/cli.py`）
 
 ```text
-python -m src.scheduler.cli start   --idea "..." [--config runs/R0001/config.yaml]
+python -m src.scheduler.cli start   --idea "..." | --design-spec examples/design_spec_wechat.json [--config runs/R0001/config.yaml]
 python -m src.scheduler.cli run     --run-id R0001 [--until P6]      # 非交互跑到阻塞点
 python -m src.scheduler.cli status  --run-id R0001                     # 打印 phase / 预算 / 最近闸门
 python -m src.scheduler.cli human   --run-id R0001 --action approve|reject|comment|sign|adjudicate|abort [--reason "..."] [--payload file.json]
 python -m src.scheduler.cli resume  --run-id R0001
 python -m src.scheduler.cli replay  --run-id R0001                     # 从 events.jsonl 复盘，不产生新调用
-python -m src.scheduler.cli viz     --run-id R0001                     # 转交 E 的渲染器（待定 Q1）
+python -m src.scheduler.cli viz     --run-id R0001 [--html [--out path]]   # 文本兜底；--html 出甘特+依赖图
 ```
 
 ### 9.3 `HumanDecision` / `ReworkOrder`
@@ -1220,6 +1308,7 @@ FUNCTION step(rt, state) -> None:
 | `events.py` | 事件写入与重放 | `emit()` `replay()` |
 | `human_gate.py` | §9 人工交互协议 | `apply_human_decision()` `build_rework_order()` |
 | `llm_gateway.py` | 统一 LLM 调用与计数 | `call()` `usage()` |
+| `taskgraph.py` | 开发任务图：契约校验、成环检测、拓扑波次、关键路径、资源冲突、排期与 HTML 渲染 | `validate_tasks()` `topological_waves()` `critical_path()` `build_schedule()` `render_html()` |
 | `cli.py` | §9.2 命令 | `main()` |
 
 依赖：Python >= 3.10（§0.4 用了 `|` 联合类型与内置泛型）、`PyYAML`、`jsonschema`（或 pydantic v2，二选一，评审会定 Q2）；不引入编排框架。
@@ -1248,7 +1337,7 @@ FUNCTION step(rt, state) -> None:
 
 ## 14. 设计评审会议对齐清单（步骤 3）
 
-### 14.1 四个必须当场敲定的数据格式
+### 14.1 六张必须当场敲定的数据格式
 
 | # | 表 | 主责 | 要确认的字段 | 结论 / 修改 |
 | --- | --- | --- | --- | --- |
@@ -1256,6 +1345,8 @@ FUNCTION step(rt, state) -> None:
 | 2 | 方案比选表 | C | `feature_items` 是否三套完全一致 / `adopted` 结构（是否允许跨方案融合） / `rationale` | 待填 |
 | 3 | 需求条目 | E | `acceptance_criteria` 三元组 / `priority` MoSCoW / `source_refs` 解析规则 | 待填 |
 | 4 | 覆盖矩阵 | E | 行来源（冲突 + 质疑 + 问题？）/ `covered_by` 引用完整性 / `coverage_rate` 算法 | 待填 |
+| 5 | 开发任务清单 | E（PM Agent） | 八项字段是否够用 / `owner_role` 词表 / `depends_on` 是否允许跨模块 / 工时单位（人天） | 待填 |
+| 6 | 排期表 | A | 波次切分口径（拓扑层级 vs 资源约束）/ 关键路径是否允许并行链 / `max_wave_width` 告警阈值 | 待填 |
 
 ### 14.2 三个对齐点
 
