@@ -264,10 +264,17 @@ class StageContext:
     ledger: BudgetLedger
     constraints: list[str] = field(default_factory=list)
     human_decisions: list[dict[str, Any]] = field(default_factory=list)
+    llm: Any = None  # LLMGateway：模型"注入口"，由 Runtime 统一实例化并计数
 
     def artifact_data(self, name: str) -> dict[str, Any]:
         art = self.artifacts.get(name) or {}
         return art.get("data") or {}
+
+    def ask(self, agent_id: str, prompt: str) -> str:
+        """模块调模型的唯一姿势：走 Gateway 计数，不在这里记账、不自己调 SDK。"""
+        if self.llm is None:
+            raise RuntimeError("本阶段没有注入 LLM 网关（Runtime 未初始化 llm）")
+        return self.llm.call(agent_id, prompt, self.stage)
 
 
 @dataclass
@@ -325,6 +332,7 @@ class RunConfig:
     seed: int = 42
     run_root: str = "runs"
     provider: str = "mock"  # mock | real：决定模块来源（mock 用于离线跑通状态机）
+    llm_provider: str = "offline"  # offline | agents | 自登记名：决定模型来源（见 llm_gateway）
 
     @property
     def global_llm_calls(self) -> int:
@@ -355,6 +363,7 @@ class RunConfig:
             seed=int(obj.get("seed", 42)),
             run_root=str(obj.get("run_root", "runs")),
             provider=str(obj.get("provider", "mock")),
+            llm_provider=str(obj.get("llm_provider", "offline")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -371,6 +380,7 @@ class RunConfig:
             "seed": self.seed,
             "run_root": self.run_root,
             "provider": self.provider,
+            "llm_provider": self.llm_provider,
         }
 
 

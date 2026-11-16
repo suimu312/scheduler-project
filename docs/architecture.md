@@ -110,6 +110,8 @@ class StageContext:
     config: dict[str, Any]                 # flow.yaml 中本阶段配置 + 约束广播
     ledger: BudgetLedger                   # 只读，模块不得自行改写
     constraints: list[str]                 # 人工打回原因广播、新约束
+    human_decisions: list[dict[str, Any]]  # 已生效的人工动作（签署/打回/裁决）
+    llm: LLMGateway                        # 模型注入口（§7.1），模块只许调 ctx.ask()
 
 @dataclass
 class GuardSignal:
@@ -1019,6 +1021,38 @@ FUNCTION build_dispatch_plan(state, flow, artifacts) -> DispatchPlan:
 - 纯代码判定（闸门、冲突扫描、覆盖率计算、打分统计）**不计费**。
 - `per_stage_used` 与 `global_used` 同时累加；任一超限即触发 `T_BUDGET`。
 
+### 7.1.1 模型注入口（A 唯一对外承诺的接口）
+
+接大模型只分三层，谁也不许越层：
+
+| 层 | 谁做 | 做什么 |
+| --- | --- | --- |
+| 注入口 | **A**（`llm_gateway.py`） | 持有唯一 `LLMGateway`，暴露 `set_provider()` / `register_provider()`；整轮只造一个，塞进 `ctx.llm` |
+| 适配器 | **B**（`src/agents/providers.py`） | 写 `HttpModel`（dict 进 dict 出）+ 环境变量 `B_MODEL_ENDPOINT` / `B_MODEL_TOKEN` |
+| 使用方 | **B / C** 需要模型的模块 | 只调 `ctx.ask(agent_id, prompt)`，不 import 请求库、不自己计数 |
+
+规则：
+
+1. 换模型 = `set_provider(新函数)` 或 `--llm-provider <登记名>`，**流程代码、闸门、预算口径一律不动**；
+2. 模块侧唯一调用点是 `ctx.ask(...)`，返回文本；要结构化结果就让 provider 返回 JSON 字符串再自己 `json.loads`；
+3. 计费：`step()` 取「模块自报 `budget_used`」与「Gateway 实测增量」的较大者 `charge`，真实 provider 只要调了 `ctx.ask` 就一定进账，mock 不自报也不会漏账；
+4. B 的 `HttpModel` 签名与本项目 `Provider` 不同（`(prompt_dict) -> dict` vs `(agent_id, prompt, stage) -> str`），由 `adapt_model()` 转换，**不许让组员改自己的适配器来迁就引擎**；
+5. 离线默认 `offline`：确定性 sha256 桩，不联网、不花钱，自检与演示都靠它。
+
+```python
+from src.scheduler.llm_gateway import register_provider, adapt_model, make_provider
+
+# 方式一：进程内注入（脚本 / notebook）
+rt.set_provider(lambda agent_id, prompt, stage: my_llm(agent_id, prompt))
+
+# 方式二：登记名字，CLI 选择
+register_provider("qwen", lambda: adapt_model(QwenModel()))
+# python -m src.scheduler.cli start --llm-provider qwen ...
+
+# 方式三：直接用组员 B 的适配器（需 B_MODEL_ENDPOINT）
+python -m src.scheduler.cli start --design-spec examples/design_spec_wechat.json --llm-provider agents
+```
+
 ### 7.2 阈值表（全部来自方案原文，集中配置在 `RunConfig.limits`）
 
 | 项 | 阈值 | 超限动作 | 归属 |
@@ -1077,6 +1111,7 @@ def run(ctx: StageContext) -> StageResult: ...
 - 输出：`StageResult`，必须包含本阶段声明的全部 `output_artifacts`，每个产物带 `meta`。
 - A 的职责：`build context → dispatch → run → 校验产物 schema → 落盘 → 计费 → emit events → 求值闸门 → 转移状态`。
 - 模块的职责：只做自己那一段语义，**不得感知状态机、不得自行决定下一阶段**。
+- 需要模型的模块（B/C）：一律 `ctx.ask(agent_id, prompt)`，不 import 请求库、不自己计数；provider 由 A 注入，见 §7.1.1。
 
 ### 8.2 各模块接口签名（评审会逐条对齐，改签名必须先改本文）
 
@@ -1172,7 +1207,7 @@ sequenceDiagram
 ### 9.2 CLI 设计（`src/scheduler/cli.py`）
 
 ```text
-python -m src.scheduler.cli start   --idea "..." | --design-spec examples/design_spec_wechat.json [--config runs/R0001/config.yaml]
+python -m src.scheduler.cli start   --idea "..." | --design-spec examples/design_spec_wechat.json [--llm-provider offline|agents] [--llm-endpoint URL]
 python -m src.scheduler.cli run     --run-id R0001 [--until P6]      # 非交互跑到阻塞点
 python -m src.scheduler.cli status  --run-id R0001                     # 打印 phase / 预算 / 最近闸门
 python -m src.scheduler.cli human   --run-id R0001 --action approve|reject|comment|sign|adjudicate|abort [--reason "..."] [--payload file.json]
@@ -1307,7 +1342,7 @@ FUNCTION step(rt, state) -> None:
 | `context.py` | §0.4 全部 dataclass + schema 校验 | `validate_artifact()` `validate_stage_result()` |
 | `events.py` | 事件写入与重放 | `emit()` `replay()` |
 | `human_gate.py` | §9 人工交互协议 | `apply_human_decision()` `build_rework_order()` |
-| `llm_gateway.py` | 统一 LLM 调用与计数 | `call()` `usage()` |
+| `llm_gateway.py` | 统一 LLM 调用与计数；**模型注入口**（§7.1.1） | `set_provider()` `register_provider()` `make_provider()` `adapt_model()` `call()` `usage()` |
 | `taskgraph.py` | 开发任务图：契约校验、成环检测、拓扑波次、关键路径、资源冲突、排期与 HTML 渲染 | `validate_tasks()` `topological_waves()` `critical_path()` `build_schedule()` `render_html()` |
 | `cli.py` | §9.2 命令 | `main()` |
 

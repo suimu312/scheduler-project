@@ -26,6 +26,7 @@ from .dispatcher import build_dispatch_plan
 from .events import EventEmitter
 from .flow_loader import Flow, load_agent_config, load_flow, resolve_asset, validate_flow
 from .gate_rule import GateEvaluator, RuleSet, load_rules, load_rules_dict
+from .llm_gateway import LLMGateway, make_provider
 from .modules import resolve as resolve_module
 from .store import RunStore
 
@@ -52,6 +53,16 @@ class Runtime:
         self.agent_config = agent_config or {}
         self.store = RunStore(config.run_root)
         self.evaluator = GateEvaluator(rules)
+        # 模型注入口：整轮只造一个 Gateway，所有模块共用，计数即账本口径（§7.1）
+        try:
+            provider = make_provider(config.llm_provider)
+        except ValueError as exc:
+            raise ConfigError([f"E_CONFIG: {exc}"]) from exc
+        self.gateway = LLMGateway(provider, name=config.llm_provider)
+
+    def set_provider(self, provider: Any, name: str | None = None) -> None:
+        """换模型只注入这里：流程代码、闸门、预算口径都不动。"""
+        self.gateway.set_provider(provider, name=name)
 
     # ------------------------------------------------------------ 启动
     @classmethod
@@ -137,6 +148,7 @@ class Runtime:
             ledger=state.ledger,
             constraints=list(state.constraints),
             human_decisions=list(state.human_decisions),
+            llm=self.gateway,
         )
 
         emitter.emit("stage.enter", stage=phase, actor="scheduler", payload_ref=spec.owner)
@@ -216,6 +228,7 @@ class Runtime:
         total_budget = 0
         last_result: StageResult | None = None
         for attempt in range(2):
+            before_calls = self.gateway.calls
             try:
                 result = fn(ctx)
             except Exception as exc:
@@ -224,7 +237,10 @@ class Runtime:
                     status="failed",
                     errors=[{"code": "E_AGENT_UNAVAILABLE", "message": f"{type(exc).__name__}: {exc}"}],
                 )
-            total_budget += int(result.budget_used or 0)
+            # 模块自报的调用次数与 Gateway 实测取大者：真实 provider 只要调了 ctx.ask
+            # 就一定被计入，mock 不调则沿用自报数，两种模块都不会漏账（§7.1）。
+            gateway_used = self.gateway.calls - before_calls
+            total_budget += max(int(result.budget_used or 0), gateway_used)
             result.budget_used = total_budget
             last_result = result
 
