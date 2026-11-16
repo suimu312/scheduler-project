@@ -199,20 +199,74 @@ pass = weighted >= 80
 
 ---
 
+## 6. 代码实现（`src/conflict_review/`）
 
----
-
-## 7. 代码骨架（`src/conflict_review/`）
-
-本模块的三个判定全部是纯函数，不调模型、不依赖网络，便于第 2 周联调时先用样例数据跑通。
+本模块的判定全部是纯函数，不调模型、不依赖网络，`budget_used` 恒为 0，便于第 2 周联调时先用样例数据跑通。
 
 | 文件 | 职责 |
 |---|---|
-| `rules.py` | 三个判定函数：`detect_conflicts` / `score_solutions` / `adjudicate`，以及门禁 `gate` |
-| `sample_input.json` | 一份最小样例：4 条立场陈述 + 5 维打分 |
-| `demo.py` | 读样例、跑三个函数、打印裁决与门禁结果 |
-| `test_rules.py` | 4 条断言，覆盖证据优先、加权投票、挂起、归一化打分 |
+| `contracts.py` | 信封适配层：复刻 `StageContext` / `StageResult` / `RunEvent` / `GuardSignal`，并提供产物 meta 壳 `make_artifact`（字段与 A 的 `validate_artifact` 逐字对齐） |
+| `models.py` | 数据结构 `Stance` / `Conflict` / `Challenge` / `ScoreSheet`，以及字段归一（`claim`↔`proposal`、`source_refs`↔`evidence_refs`、`FOR`↔`for`） |
+| `rules.py` | 七条纯函数：`canon_scores` / `weighted_total` / `stddev` / `gate` / `validate_challenge` / `triage_challenges` / `find_veto_items` / `detect_conflicts` / `adjudicate` / `route_rework` / `review` |
+| `stage.py` | 统一入口 `run(ctx)`：`stage == P3` 走冲突扫描与裁决，`stage == P5` 走四要素校验、打分与回炉分流 |
+| `sample_input.json` | 一份联调样例：B 真实格式的 9 条立场陈述（覆盖 L1/L2/L3 三种裁决）+ 打分 + 任务清单（含三种否决项） |
+| `demo.py` | 读样例 → P3 裁决 → P5 打分，打印全过程 |
+| `test_rules.py` | 12 条断言：基础规则 4 条、字段兼容 1 条、四要素与驳回率 2 条、否决项 2 条、回炉分流 1 条、`run(ctx)` 集成 2 条 |
 
-运行方式：`python -m src.conflict_review.demo`（或在该目录下 `python demo.py`）。
+运行方式：`python -m src.conflict_review.demo`（或在该目录下 `python demo.py`）；测试同理 `python test_rules.py`。
 
-**约定**：本模块只返回判定结果，不写 `runs/`、不改状态；所有动作由编排器 A 落盘并转为事件。
+**约定**：本模块只返回判定结果，不写 `runs/`、不改状态；所有动作由编排器 A 落盘并转为事件，事件序号也由 A 的 `EventEmitter` 统一分配。
+
+## 7. 与其他模块的字段契约（联调必读）
+
+这一节是第 2 周联调的对齐基线。**改字段先改本节，再改 `models.py`。**
+
+### 7.1 入口
+
+五个模块一律在 `src/<模块>/__init__.py` 暴露 `run(ctx) -> StageResult`，A 的 `modules.resolve` 靠它加载。
+D 的 `run` 按 `ctx.stage` 分发：`P3` → `run_p3`，`P5` → `run_p5`，其余阶段直接 `failed`。
+
+### 7.2 吃进来的（B → D）
+
+| D 的标准名 | 接受的别名 | 来源 |
+|---|---|---|
+| `agent_id` | `agent` / `speaker` / `scorer` | `discussion_minutes.statements[]` |
+| `position` | `stance` / `attitude`；大小写与中文都认 | B 写 `FOR`/`AGAINST`，D 内部一律归一为 `for`/`against`/`neutral` |
+| `claim` | `proposal` / `statement` / `text` / `opinion` | B 当前用 `claim` |
+| `source_refs` | `evidence_refs` / `sources` / `evidence`（字符串自动转数组） | B 当前用 `source_refs` |
+| `topic_id` | `issue_id`（缺失时回落到 `issue.topic_id`） | 分组键 |
+
+**结论：B 不需要改任何字段**，D 侧做归一即可。这条是硬约束——两个模块都改字段只会让第三个人看不懂。
+
+### 7.3 交出去的（D → A）
+
+`conflict_register`（P3 / P5 都要回传）：
+
+```
+data.conflicts[]      conflict_id / issue_id / topic_id / stances[] / level / status / resolution
+                      status: open | resolved | suspended（L3 挂起）
+data.open_count       status == "open" 的条数
+data.escalated_ids[]  被挂起交人的 conflict_id
+data.stats            议题数 / 立场数 / 新登记数 / by_level
+```
+
+`review_sheet`（仅 P5）：
+
+```
+data.scores[]         {dimension, scorer, score, reason}，dimension ∈ completeness/feasibility/risk/testability
+data.weighted_total   百分制（Σ 权重×分 ÷ 90，不再乘 100）
+data.stddev           四维原始分的总体标准差
+data.veto             是否存在否决项
+data.veto_items[]     {code, severity, task_id?, detail}，code ∈ dep_cycle / no_acceptance / oversize
+data.challenges[]     {challenge_id, description, impact_ref, consequence, severity, category, verdict}
+data.rework_target    P4 | P3 | HUMAN（不通过时的回炉去向，A 的 G_P5_REWORK_* 直接读）
+```
+
+两份产物都走 `make_artifact`，`meta` 五字段齐全（`schema_version` / `run_id` / `stage` / `produced_by` / `created_at`），
+`produced_by` 固定为 `conflict_review`。
+
+### 7.4 已验证
+
+拿 A 分支的 `validate_stage_result`、`gate_check.score_pass`、`challenge_category_is`、`has_escalated_conflict`
+直接验过一遍：P3 / P5 产物校验均无错误，`score_pass` 正确读到 `total=85.5, stddev=5.12, veto=True`，
+`challenge_category_is` 正确按 `category` 分流出 `solution → P4`。
