@@ -111,12 +111,12 @@
         "artifact_name": "role_cards"
       },
       "data": {
-        "version": "1.0.0",
+        "version": "1.0.1",
         "roles": {
           "A1": {
             "name": "产品经理",
             "family": "deliberative",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "goal": "把设计规格转成有交付价值的开发任务，控制范围与节奏。",
             "stance": {
               "must_defend": "交付价值、范围和成本约束",
@@ -151,7 +151,7 @@
           "A2": {
             "name": "用户代表",
             "family": "deliberative",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "goal": "维护核心用户流程，判断任务是否形成可观察的用户价值。",
             "stance": {
               "must_defend": "核心场景走通、体验与可验收价值",
@@ -184,7 +184,7 @@
           "A3": {
             "name": "技术架构师",
             "family": "deliberative",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "goal": "解释模块边界、接口前置条件和依赖方向，维护技术可执行性。",
             "stance": {
               "must_defend": "可实现的依赖闭环和系统稳定性",
@@ -218,7 +218,7 @@
           "A4": {
             "name": "质量评审员",
             "family": "deliberative",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "goal": "维护任务验收、风险与安全底线，提出带证据的反方质疑。",
             "stance": {
               "must_defend": "可测试性、安全和风险底线",
@@ -251,7 +251,7 @@
           "A5": {
             "name": "需求分析师",
             "family": "processing",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "goal": "结构化任务、校验验收口径和来源覆盖，不发表 P3 立场。",
             "stance": {
               "must_defend": "字段完整与追溯一致",
@@ -281,7 +281,7 @@
           "A6": {
             "name": "需求确认员",
             "family": "processing",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "goal": "整理确认单与基线材料，不代替人类签字。",
             "stance": {
               "must_defend": "确认记录完整、冻结与变更可追溯",

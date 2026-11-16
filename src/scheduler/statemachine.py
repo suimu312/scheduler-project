@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from . import budget as budget_mod
@@ -165,15 +166,6 @@ class Runtime:
             self.store.save_state(state)
             return {"action": "abort", "reason": "error"}
 
-        # 非 ok：blocked / need_human 不重试，直接进人工闸门（§8.4）
-        if result.status in ("blocked", "need_human"):
-            state.status = "waiting_human"
-            state.phase = "HUMAN_GATE"
-            state.pending = {"from": phase, "to": phase, "reason": result.status, "errors": result.errors}
-            self.store.save_state(state)
-            emitter.emit("run.blocked", stage=phase, actor="human_gate", payload_ref=result.status)
-            return {"action": "wait_human", "reason": result.status}
-
         # 落盘 + 索引
         index = self.store.write_artifacts(state.run_id, result.artifacts)
         state.artifacts_index.update(index)
@@ -196,6 +188,15 @@ class Runtime:
         for sig in state.guard_signals:
             emitter.emit("guard.signal", stage=phase, actor="scheduler", payload_ref=str(sig.get("signal")))
 
+        # 真实模型可能已经花费调用后才挂起；先落盘计费，再进入人工闸门。
+        if result.status in ("blocked", "need_human"):
+            state.status = "waiting_human"
+            state.phase = "HUMAN_GATE"
+            state.pending = {"from": phase, "to": phase, "reason": result.status, "errors": result.errors}
+            self.store.save_state(state)
+            emitter.emit("run.blocked", stage=phase, actor="human_gate", payload_ref=result.status)
+            return {"action": "wait_human", "reason": result.status}
+
         # 闸门求值 + 状态转移
         verdict = self.evaluate(state)
         self.apply_transition(state, verdict)
@@ -204,6 +205,20 @@ class Runtime:
 
         self.store.save_state(state)
         return verdict
+
+    def _call_module(self, fn: Any, ctx: StageContext) -> StageResult:
+        """调用模块：模块若声明 gateway 形参（如 B 的 agents_bridge），把唯一的 Gateway 递进去。
+
+        这样 `run(ctx)` 与 `run(ctx, gateway=None)` 两种写法都能接，A 不用改流程代码，
+        组员也不用为了拿 gateway 自己再造一个（否则预算会被记两份）。
+        """
+        try:
+            params = inspect.signature(fn).parameters
+        except (TypeError, ValueError):
+            params = {}  # 内置/不可内省的函数按 run(ctx) 处理
+        if "gateway" in params:
+            return fn(ctx, gateway=self.gateway)
+        return fn(ctx)
 
     def _invoke_module(
         self,
@@ -230,7 +245,7 @@ class Runtime:
         for attempt in range(2):
             before_calls = self.gateway.calls
             try:
-                result = fn(ctx)
+                result = self._call_module(fn, ctx)
             except Exception as exc:
                 result = StageResult(
                     stage=state.phase,

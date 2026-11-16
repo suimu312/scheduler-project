@@ -1035,6 +1035,7 @@ FUNCTION build_dispatch_plan(state, flow, artifacts) -> DispatchPlan:
 
 1. 换模型 = `set_provider(新函数)` 或 `--llm-provider <登记名>`，**流程代码、闸门、预算口径一律不动**；
 2. 模块侧唯一调用点是 `ctx.ask(...)`，返回文本；要结构化结果就让 provider 返回 JSON 字符串再自己 `json.loads`；
+2.1 模块也可以写 `run(ctx, gateway=None)`：引擎发现这个形参会自动把唯一 Gateway 递进去（B 的 `agents_bridge` 就是这种写法），两种签名都接、账只记一份；
 3. 计费：`step()` 取「模块自报 `budget_used`」与「Gateway 实测增量」的较大者 `charge`，真实 provider 只要调了 `ctx.ask` 就一定进账，mock 不自报也不会漏账；
 4. B 的 `HttpModel` 签名与本项目 `Provider` 不同（`(prompt_dict) -> dict` vs `(agent_id, prompt, stage) -> str`），由 `adapt_model()` 转换，**不许让组员改自己的适配器来迁就引擎**；
 5. 离线默认 `offline`：确定性 sha256 桩，不联网、不花钱，自检与演示都靠它。

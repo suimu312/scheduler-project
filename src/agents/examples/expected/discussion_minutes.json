@@ -268,14 +268,14 @@
     ],
     "extensions": {
       "template_versions": {
-        "A1": "1.0.0",
-        "A2": "1.0.0",
-        "A3": "1.0.0",
-        "A4": "1.0.0",
-        "A5": "1.0.0",
-        "A6": "1.0.0"
+        "A1": "1.0.1",
+        "A2": "1.0.1",
+        "A3": "1.0.1",
+        "A4": "1.0.1",
+        "A5": "1.0.1",
+        "A6": "1.0.1"
       },
-      "config_fingerprint": "ea2e83b3e9beb4e5400b5ebbb0fdd40afc06a1b96e0d0256b518b2746c19d777",
+      "config_fingerprint": "fce21d91618b0ff79700c2936ce6878bdeebb5d141ad48c427819fda40fc14de",
       "similarity_mode": "lexical_degraded",
       "model_attempts_this_step": 4
     },

@@ -71,12 +71,18 @@ def main():
     run_cmd = sub.add_parser("run-step", help="使用 B_MODEL_ENDPOINT 或宿主注入适配器")
     run_cmd.add_argument("--input", required=True)
     run_cmd.add_argument("--output", required=True)
+    live_cmd = sub.add_parser("live", help="通过 A 网关调用真实豆包，D 规则登记/裁决；不使用脚本回答")
+    live_cmd.add_argument("--input", default=str(Path(__file__).parent / "examples" / "expected" / "input_context.json"))
+    live_cmd.add_argument("--output", default="runs/b-live")
     args = parser.parse_args()
     if args.command == "demo":
         demo(args.output)
-    else:
+    elif args.command == "run-step":
         ctx = json.loads(Path(args.input).read_text(encoding="utf-8-sig"))
         dump(Path(args.output), run_discussion(ctx))
+    else:
+        from .live import live
+        live(args.input, args.output)
 
 
 if __name__ == "__main__":

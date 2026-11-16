@@ -49,6 +49,8 @@ class RolesTest(unittest.TestCase):
         self.assertNotIn("published_claims", body)
         self.assertNotIn("SHOULD_NOT_APPEAR", request["user"])
         self.assertEqual({m["category"] for m in body["visible_materials"]}, {"spec", "user_feedback"})
+        self.assertEqual(set(body["output_schema"]), {"position", "claim", "source_refs"})
+        self.assertEqual(body["allowed_source_refs"], ["material_catalog:MAT-001", "material_catalog:MAT-003"])
         with self.assertRaises(AgentError):
             render_prompt("A5", "statement", ctx)
 

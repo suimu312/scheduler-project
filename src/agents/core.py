@@ -154,7 +154,7 @@ def render_prompt(agent_id, protocol_step, ctx):
     require(protocol_step in STEPS, "E_SCHEMA_INVALID", "protocol_step 错误")
     cfg = load_config(ctx.get("config", {}).get("agent_config_path"))
     role = cfg["roles"][agent_id]
-    visible, _ = _material_view(ctx, agent_id, cfg)
+    visible, exclusive = _material_view(ctx, agent_id, cfg)
     issue = ctx["config"]["issue"]
     require(issue["topic_id"] in cfg["topics"], "E_SCHEMA_INVALID", "未知议题")
     # 顺序读取只来自固定、受信任的项目模板。
@@ -162,6 +162,14 @@ def render_prompt(agent_id, protocol_step, ctx):
     template = (ROOT / "prompt_templates" / (agent_id + ".md")).read_text(encoding="utf-8")
     user = {"issue": issue, "visible_materials": list(visible.values()),
             "step": protocol_step, "retry": ctx["config"].get("retry_instruction", "")}
+    example_ref = sorted(exclusive)[0]
+    schemas = {
+        "statement": {"position": "FOR", "claim": "针对议题的主张与理由；position 可为 FOR/AGAINST/NEUTRAL", "source_refs": [example_ref]},
+        "query": {"answer": "只回答 question_task，给出适用条件、代价和验证依据", "source_refs": [example_ref]},
+        "vote": {"ballot": "FOR", "reason": "实质理由；ballot 可为 FOR/AGAINST/ABSTAIN", "source_refs": [example_ref]},
+    }
+    user["output_schema"] = schemas[protocol_step]
+    user["allowed_source_refs"] = sorted(visible)
     if protocol_step != "statement":
         # 仅分享已通过边界检查的主张；不跨角色泄露证据原文/引用。
         minutes = read_artifact(ctx, "discussion_minutes")
@@ -248,8 +256,8 @@ def run_discussion(ctx, model=None, embedder=None):
     require(type(requested_limit) is int and requested_limit >= 0, "E_SCHEMA_INVALID", "调用上限错误")
     limit = min(ctx["budget_left"], requested_limit)
     if model is None:
-        from .providers import HttpModel
-        model = HttpModel.from_env()
+        from .providers import configured_model
+        model = configured_model("P3")
 
     def signal(code, **details):
         item = {"code": code, "issue_id": issue["issue_id"], "step": step, **details}
@@ -282,7 +290,7 @@ def run_discussion(ctx, model=None, embedder=None):
                 continue  # 修订版：超时不扣模型调用预算。
             usage += 1
             if error:
-                signal("E_MODEL_UNAVAILABLE", agent_id=aid, detail=type(error).__name__)
+                signal("E_MODEL_UNAVAILABLE", agent_id=aid, detail=str(error) if isinstance(error, AgentError) else type(error).__name__)
                 continue
             try:
                 visible, exclusive = _material_view(ctx, aid, cfg)
