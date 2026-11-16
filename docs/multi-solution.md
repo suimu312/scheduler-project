@@ -11,6 +11,15 @@
 > 模块代号：C（技术架构师）
 > 代码目录：`src/solution_gen/`
 
+### 模型依赖说明
+1. 本模块复用项目统一网关 `llm_gateway`，通过 `set_provider()` 注入模型实例，不改动网关底层代码。
+2. 模型调用能力直接复用B模块已实现的 `HttpModel` 传输适配类，导入路径：`from agents.core import HttpModel`。
+3. 模型连接信息由环境变量注入，无需硬编码：
+   - B_MODEL_ENDPOINT：模型网关地址
+   - B_MODEL_TOKEN：网关鉴权令牌
+4. 调用方式：使用 `HttpModel.from_env()` 自动读取环境变量完成实例化，直接注入网关。
+5. 约束：模型仅负责填充三套方案的文本内容；方案结构、校验规则、输出格式全部由代码固化，严格遵循“控制权在代码，不在模型”原则。
+
 ## 二、三套任务分解方案设计
 > **硬规则 C4：三套方案必须使用完全相同的 feature_ids 集合，ID 顺序、数量完全一致，保证可以逐行做功能点级别比选。**
 
@@ -143,9 +152,7 @@ def run(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 ## 八、模块内部执行流程
 1. run() 接收编排器传入的上下文ctx
-2. generate_breakdowns() 生成 SOL_A / SOL_B / SOL_C 三套WBS
+2. 导入 `HttpModel`，读取环境变量，注入 llm_gateway。generate_breakdowns() 生成 SOL_A / SOL_B / SOL_C 三套WBS
 3. validate_breakdown() 做schema、C4、依赖合法性校验
 4. build_comparison() 生成solution_comparison比选表
 5. 打包artifacts、events、usage计数，返回给编排器
-
-> （注：部分内容由豆包 AI 生成）
