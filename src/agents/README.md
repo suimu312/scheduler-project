@@ -1,6 +1,52 @@
-# B 模块使用与联调说明
+# B 模块 角色与讨论管理
 
 本模块按修订版方案实现角色、P2 召集、P3 独立陈述/定向质询/投票、防趋同及用户价值建议。正式设计文档是仓库的 `docs/role-discussion.md`。
+
+在“设计规格 → 任务分解 → 编排 → 可视化”的整体流程中，B 负责组织有依据的讨论，为任务分解提供结构化输入。模块独立开发与离线验收已完成，真实模型与全组集成仍需联调验证。
+
+## 功能与职责
+
+| 功能 | 说明 |
+|---|---|
+| 角色与提示词 | 配置六个智能体的目标、立场约束、知识边界和上场规则 |
+| P2 召集 | 按功能点分类和置信度召集角色，确保关键角色在场 |
+| P3 讨论 | 独立陈述、定向质询、带理由投票，保留结构化证据链 |
+| 防趋同 | 代码计算相似度，触发补发言，记录检测降级和挂起信号 |
+| 用户价值 | 根据明确的规格标记提供 M/S/C/W 建议，不猜测缺失依据 |
+| 异常处理 | 校验越界引用、无效输出、超时、预算和步骤顺序 |
+
+B 提供讨论机制与记录；A 负责调度、全局预算与排期，C 生成分解方案，D 登记和裁决冲突，E 整理任务与可视化，F 负责确认和基线。
+
+## 角色设置
+
+| 编号 | 角色 | P3 参与方式 |
+|---|---|---|
+| A1 | 产品经理 | 陈述、质询、投票；P5 回避 |
+| A2 | 用户代表 | 陈述、质询、投票 |
+| A3 | 技术架构师 | 陈述、质询、投票 |
+| A4 | 质量评审员 | 陈述、质询、投票 |
+| A5 | 需求分析师 | 处理型，不持立场、不投票 |
+| A6 | 需求确认员 | 处理型，不持立场、不投票 |
+
+编排器单列，不占业务智能体编号。小组成员 A–F 与运行时智能体 A1–A6 是两套编号。
+
+## 目录结构
+
+```text
+src/agents/
+├── README.md                  # 本说明
+├── __init__.py                # 公共接口
+├── __main__.py                # 演示与单步调用入口
+├── core.py                    # 召集、讨论、防趋同、价值建议
+├── providers.py               # HTTP 模型网关适配
+├── agent_config.yaml          # 角色、知识边界、议题和阈值
+├── prompt_templates/          # 通用协议与六角色模板
+├── examples/
+│   ├── fixture.py             # 明确标记的离线脚本和输入
+│   └── expected/              # 固定输入与输出样例
+└── tests/
+    └── test_agents.py         # 自动验收
+```
 
 所有 B 配置、模板、代码、样例和测试均在 `src/agents/` 内。需要 Python 3.10+；默认配置使用合法 YAML 1.2 的 JSON 语法，不需安装依赖。普通 YAML 可选使用 PyYAML。
 
@@ -14,6 +60,17 @@ python -m src.agents demo --output runs/b-demo
 ```
 
 离线演示使用固定脚本，不联网。结果为四条独立陈述、四对定向问答、四张带理由的票，合计十二次模拟调用。输出文件在 `runs/b-demo/`，不提交。已保存的固定样例在 `src/agents/examples/expected/`。
+
+演示后优先查看：
+
+| 输出文件 | 查看内容 |
+|---|---|
+| `演示记录.md` | 可阅读的陈述、问答与投票 |
+| `convocation_result.json` | P2 召集表和角色配置快照 |
+| `discussion_minutes.json` | 本轮完整结构化讨论纪要 |
+| `statement_result.json` | 相似度报告和防趋同信号 |
+| `user_value_result.json` | 任务用户价值与优先级建议 |
+| `events.jsonl` | 演示宿主分配序号后的事件 |
 
 这只是 B 的独立验收，不代表真实模型和其他五模块已联调完成。示例中的分类、冲突登记和任务清单都是明确标记的夹具。
 
@@ -38,7 +95,7 @@ from src.agents import estimate_similarity, evaluate_user_value
 
 输入对象字段：run_id、stage、budget_left、artifacts、config。每个 artifact 是 `{"meta": {...}, "data": {...}}`；meta 至少含 schema_version=1.0、run_id，产物还记录 stage、producer、artifact_name。
 
-返回值为 `{"artifacts": {...}, "events": [...], "usage": 调用次数}`。由于当前尚未接入 A 的正式信封 schema，A 应按修订版在其统一 schema 中登记或适配，不要建立第二套全局契约。
+返回值为 `{"artifacts": {...}, "events": [...], "usage": 调用次数}`。与 A 的正式信封 schema 的兼容性仍需联调确认；B 私有产物应在 A 的统一 schema 中登记或适配，避免建立第二套全局契约。
 
 完整上下文见本模块 examples/expected/input_context.json，P2/P6 的对应输入也在同目录。
 
@@ -119,5 +176,7 @@ evaluate_user_value 输入 design_spec 与 dev_task_list。任务沿用全组 ta
 ## 验收与提交范围
 
 已通过 24 项自动测试：角色配置、知识边界、材料追溯、独立陈述、召集、步骤顺序、D 登记、预算、超时、格式修正、无理由弃权、平票、重复发言、embedding 降级、配置指纹和用户价值等。
+
+当前完成范围为 B 的独立功能、配置、模板、样例及自动验收。后续集成重点是：真实模型结构化输出、真实 embedding、A 的信封与预算对接、D 的冲突登记和回答审查，以及 C/E 对讨论结果的消费。
 
 向仓库提交 src/agents/ 的代码、配置、模板、examples、tests 和本说明，以及 docs/role-discussion.md。不要提交 __pycache__、*.pyc、runs、密钥。独立输出样例不证明六模块已经联调。
