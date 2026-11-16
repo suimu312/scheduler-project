@@ -153,15 +153,6 @@ class Runtime:
             self.store.save_state(state)
             return {"action": "abort", "reason": "error"}
 
-        # 非 ok：blocked / need_human 不重试，直接进人工闸门（§8.4）
-        if result.status in ("blocked", "need_human"):
-            state.status = "waiting_human"
-            state.phase = "HUMAN_GATE"
-            state.pending = {"from": phase, "to": phase, "reason": result.status, "errors": result.errors}
-            self.store.save_state(state)
-            emitter.emit("run.blocked", stage=phase, actor="human_gate", payload_ref=result.status)
-            return {"action": "wait_human", "reason": result.status}
-
         # 落盘 + 索引
         index = self.store.write_artifacts(state.run_id, result.artifacts)
         state.artifacts_index.update(index)
@@ -183,6 +174,15 @@ class Runtime:
         state.guard_signals = [s.to_dict() for s in result.guard_signals]
         for sig in state.guard_signals:
             emitter.emit("guard.signal", stage=phase, actor="scheduler", payload_ref=str(sig.get("signal")))
+
+        # 真实模型可能已经花费调用后才挂起；先落盘计费，再进入人工闸门。
+        if result.status in ("blocked", "need_human"):
+            state.status = "waiting_human"
+            state.phase = "HUMAN_GATE"
+            state.pending = {"from": phase, "to": phase, "reason": result.status, "errors": result.errors}
+            self.store.save_state(state)
+            emitter.emit("run.blocked", stage=phase, actor="human_gate", payload_ref=result.status)
+            return {"action": "wait_human", "reason": result.status}
 
         # 闸门求值 + 状态转移
         verdict = self.evaluate(state)

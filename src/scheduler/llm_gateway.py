@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 from typing import Any, Callable, Protocol
 
 
@@ -24,6 +25,7 @@ def offline_provider(agent_id: str, prompt: str, stage: str) -> str:
 class LLMGateway:
     def __init__(self, provider: Provider | None = None) -> None:
         self._provider: Provider = provider or offline_provider
+        self._lock = threading.Lock()
         self.calls = 0
         self.by_stage: dict[str, int] = {}
         self.by_agent: dict[str, int] = {}
@@ -32,13 +34,23 @@ class LLMGateway:
         self._provider = provider
 
     def call(self, agent_id: str, prompt: str, stage: str) -> str:
-        self.calls += 1
-        self.by_stage[stage] = self.by_stage.get(stage, 0) + 1
-        self.by_agent[agent_id] = self.by_agent.get(agent_id, 0) + 1
-        return self._provider(agent_id, prompt, stage)
+        with self._lock:
+            self.calls += 1
+            self.by_stage[stage] = self.by_stage.get(stage, 0) + 1
+            self.by_agent[agent_id] = self.by_agent.get(agent_id, 0) + 1
+        try:
+            return self._provider(agent_id, prompt, stage)
+        except TimeoutError:
+            # 与 B 和修订版一致：超时记事件，不扣本次生成调用预算。
+            with self._lock:
+                self.calls -= 1
+                self.by_stage[stage] -= 1
+                self.by_agent[agent_id] -= 1
+            raise
 
     def usage(self) -> dict[str, Any]:
-        return {"calls": self.calls, "by_stage": dict(self.by_stage), "by_agent": dict(self.by_agent)}
+        with self._lock:
+            return {"calls": self.calls, "by_stage": dict(self.by_stage), "by_agent": dict(self.by_agent)}
 
     def reset(self) -> None:
         self.calls = 0

@@ -3,8 +3,10 @@ from .core import (
     AgentError, build_convocation, estimate_similarity, evaluate_user_value,
     load_config, render_prompt, run_discussion, validate_config,
 )
+from .stage import run
 
 __all__ = [
     "AgentError", "build_convocation", "estimate_similarity", "evaluate_user_value",
     "load_config", "render_prompt", "run_discussion", "validate_config",
+    "run",
 ]

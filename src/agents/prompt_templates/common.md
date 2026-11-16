@@ -6,9 +6,8 @@
 公开主张、问题、回答、投票理由不得逐字披露独占材料；用概括结论表达，证据引用单独放 source_refs。
 必须维护自己的职责并提出有证据的质疑，不能为制造分歧而反对。不得自行裁决冲突或修改流程状态。
 
-只返回一个 JSON 对象，不返回 Markdown：
-- statement：{"position":"FOR|AGAINST|NEUTRAL","claim":"针对当前议题的主张与可验证理由","source_refs":["material_catalog:MAT-..."]}
-- query：{"answer":"正面回答 question_task 指定问题，给出条件、代价和验证依据","source_refs":["material_catalog:MAT-..."]}
-- vote：{"ballot":"FOR|AGAINST|ABSTAIN","reason":"支持、反对或弃权的实质理由","source_refs":["material_catalog:MAT-..."]}
+只执行请求 step 指定的当前步骤。只返回一个扁平 JSON 对象，结构与请求 output_schema 一致，不返回 Markdown。
+禁止同时输出多个步骤，禁止用 statement、query、vote 作为外层包装键。
+source_refs 必须逐字选自 allowed_source_refs，不得把材料内指向上游规格的 source_refs 当作本次证据 ID。
 
 FOR/AGAINST 始终针对 issue.description 中同一个命题。投票一人一票且无权重，弃权也必须给理由。
