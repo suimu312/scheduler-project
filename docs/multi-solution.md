@@ -1,186 +1,151 @@
-# multi-solution.md
+# multi-solution.md 多方案任务分解设计
 
-> 负责人：王涵萱（C · 技术架构师）
-> 对应阶段：P4 多方案生成与比选
-> 状态：草稿 v0.1 ｜ 2026-11-10
-> 下游输入：输出交付至 P5 对抗评审模块 `review-conflict.md`
+## 一、模块定位
+本模块对应系统 **P4 阶段**，输入为 P3 裁决后的功能点基线、设计规格、冲突登记结果；输出三套不同切分口径的开发任务分解方案（WBS）与逐功能点比选表。输出产物供 P5 对抗式评审作为比对对象，采纳后的方案作为 P6 生成最终 WBS 的输入蓝本。
 
----
+本模块严格遵守系统三条顶层设计原则：
+1. **控制权在代码，不在模型**：三套方案的整体结构、校验规则由代码固化；模型仅负责内容填充，不能决定方案取舍、流程跳转。
+2. **一切皆事件**：方案生成完成、比选完成均会输出事件，写入全局事件流，支持回放、审计。
+3. **可计算的才算条件**：方案合法性校验、C4一致性校验、依赖合法性全部为纯函数；校验失败直接抛出异常，阻止非法产物流向下游。
 
-## 1. 本模块管什么
+> 模块代号：C（技术架构师）
+> 代码目录：`src/solution_gen/`
 
-**一句话**：基于标准化需求与项目约束，生成**成本优先 / 体验优先 / 扩展优先**三套差异化完整技术方案，输出结构化方案数据、方案比选表、推荐基准方案，为 P5 对抗评审提供完整输入素材。
+## 二、三套任务分解方案设计
+> **硬规则 C4：三套方案必须使用完全相同的 feature_ids 集合，ID 顺序、数量完全一致，保证可以逐行做功能点级别比选。**
 
-| 项 | 内容 |
+### 2.1 方案A：按模块细分（SOL_A）
+- **切分逻辑**：以业务模块边界为第一优先级；同一模块内的功能点再拆分为前端、后端、联调自测子任务。
+- **适用场景**：团队角色划分清晰（前端/后端分开），追求最大并行开发效率。
+- **特征**
+  - 单个功能点拆分为：前端页面开发 → 后端接口开发 → 联调自测；
+  - 任务粒度控制在 0.5-1.5 人天；
+  - 跨模块依赖尽量少，职责归属清晰。
+- **优点**：并行度高，适合多人同时开工；按模块验收方便。
+- **缺点**：整体系统级联调集中在后期。
+
+### 2.2 方案B：按里程碑切分（SOL_B）
+- **切分逻辑**：基于功能优先级划分里程碑；Must级进入M1基础框架，Should级进入M2核心功能，Could级进入M3完善优化。每个里程碑包含完整可演示的端到端功能。
+- **适用场景**：项目存在明确阶段性交付、演示、外部验收节点。
+- **特征**
+  - 每个里程碑前置一个评审启动任务；
+  - 功能不再拆分前后端，使用全栈任务；
+  - 单任务工时约 2.0 人天。
+- **优点**：每一个里程碑结束都有可演示版本，风险显性化。
+- **缺点**：对开发人员全栈能力有一定要求，单任务粒度偏大。
+
+### 2.3 方案C：按风险优先（SOL_C）
+- **切分逻辑**：按风险等级对功能点重排序；高风险功能优先做技术预研原型验证，验证通过后再正式开发；低风险功能直接进入开发。
+- **适用场景**：项目包含新技术、未知第三方依赖、探索性需求。
+- **特征**
+  - high风险功能会额外增加"技术预研与原型验证"前置任务；
+  - 任务执行顺序按照风险从高到低排列。
+- **优点**：技术风险前置暴露，避免后期大规模返工。
+- **缺点**：项目前期进度看起来较慢，预研存在不确定性。
+
+## 三、方案比选表设计
+### 3.1 比选维度
+逐功能点对比三套方案，一行对应一个功能点：
+
+|维度|说明|
 |---|---|
-| 输入 | req_builder 标准化需求条目列表；scheduler 全局上下文（预算、迭代终止条件、项目约束）；前置质询与问题识别历史记录（可选） |
-| 输出 | 三套方案结构体；方案比选打分表；融合后推荐基准方案；配套可被评审引用的证据引用链 |
-| 下游 | 交付 P5 `review-conflict.md` 对抗评审模块；作为其输入：三套方案 + 方案比选表 |
-| 不负责 | 不做最终业务决策；不执行评审打分；不做门禁判定；冲突登记交由 D 质量评审员模块完成 |
+|task_count|该功能点下拆分出多少张任务卡|
+|total_hours|该功能点预估总人天|
+|parallel|可并行执行的任务数量|
+|risk|风险等级 low / medium / high|
 
-> 边界约定：本模块只负责**生成、对比、融合候选方案**。方案修改回炉由本模块承接；分歧冲突登记、意见有效性校验、三级裁决全部交给 D 模块。遵循职责单一：**谁生成谁修改，谁评审谁裁决**。
+### 3.2 融合规则
+1. **单功能点推荐**：优先选择总工时最小的方案；
+2. **禁止同一功能点混用多套切分逻辑**，会造成依赖混乱；
+3. **blendable（可融合标记）**：代表该功能点可以独立选用某一套方案，和其他功能点做拼接；
+4. **融合禁令**：融合后如果出现依赖悬空、依赖环，则直接标记为不可融合，不进入候选；
+5. **final_recommendation**：全局给出一套默认推荐方案，本模块默认输出 SOL_A。
 
-### 1.1 P4 四步执行流程
-
-| 步骤 | 执行者 | 工作内容 | 产出 | 可并行 |
-|---|---|---|---|---|
-| ① 方案生成 | C 技术架构 Agent | 分别生成成本 / 体验 / 扩展三套完整方案，每套必须具备明确倾向性，禁止趋同 | 3 份 `Solution` 结构体 | 是 |
-| ② 方案维度评估 | C 技术架构 Agent | 逐条功能评估成本等级、体验等级、扩展等级、风险；生成内部比选原始数据 | `feature_list` 评估项、风险列表 | 否 |
-| ③ 方案比选 & 候选融合 | C 技术架构 Agent | 加权计算三套方案总分；尝试跨方案功能融合；检测架构兼容性冲突标记 | 方案比选表、完整最高分方案、带冲突标记混合方案 | 否 |
-| ④ 输出交付 | C 技术架构 Agent | 组装完整输出，带上证据引用，交付给 P5 对抗评审 | 给 D 模块的完整输入数据包 | — |
-
-> 重要约束：C（方案作者）在 P5 评审环节需要回避打分，对应 `review-conflict.md` 规约「A1 在五维打分缺席：作者不评自己的作品」。
-
----
-
-## 2. 核心数据结构定义
-
-### 2.1 Solution 单套方案结构体
-
+### 3.3 solution_comparison.json 输出字段
 ```json
 {
-  "solution_id": "str",
-  "solution_type": "cost_first | experience_first | scale_first",
-  "summary": "方案一句话概述",
-  "architecture_desc": "架构简述",
-  "evidence_ref": ["E-001", "E-002"],
-  "feature_list": [
+  "feature_count": 3,
+  "rows": [
     {
-      "feature_name": "功能名称",
-      "target_req_id": "REQ-xxx",
-      "implement_way": "实现方式",
-      "cost_level": "1-5",
-      "experience_level": "1-5",
-      "scale_level": "1-5",
-      "risk": "风险说明",
-      "evidence_ref": ["E-xxx"]
+      "feature_id": "FEA-001",
+      "title": "xxx",
+      "data": {
+        "SOL_A": {"task_count": 3, "total_hours": 3.0, "parallel": 1, "risk": "medium"},
+        "SOL_B": {"task_count": 1, "total_hours": 2.0, "parallel": 1, "risk": "low"},
+        "SOL_C": {"task_count": 1, "total_hours": 1.5, "parallel": 1, "risk": "low"}
+      },
+      "recommend": "SOL_C",
+      "blendable": true
     }
   ],
-  "total_est_cost": "预估总成本",
-  "est_cycle": "预估开发周期",
-  "risk_list": [
-    {
-      "risk_id": "RISK-xxx",
-      "desc": "风险描述",
-      "impact_ref": ["REQ-xxx"],
-      "severity": "BLOCKER | MAJOR | MINOR",
-      "if_unfixed": "风险不处理会造成什么后果"
-    }
-  ]
+  "summary": {
+    "SOL_A": {"total_task": 9, "total_day": 9.0, "avg_task_day": 1.0},
+    "SOL_B": {"total_task": 6, "total_day": 7.5, "avg_task_day": 1.25},
+    "SOL_C": {"total_task": 4, "total_day": 6.0, "avg_task_day": 1.5}
+  },
+  "final_recommendation": "SOL_A",
+  "blend_candidates": ["FEA-001", "FEA-002", "FEA-003"]
 }
 ```
 
-> 对齐 D 评审模块规约要点：
-> 1. `feature.target_req_id` 必须绑定具体需求条目，不能只描述整体方案，方便 D 模块 `ReviewOpinion.target` 引用定位；
-> 2. `risk_list` 每条风险强制携带 `impact_ref`、`severity`、`if_unfixed`，与评审意见四要素对齐；
-> 3. `evidence_ref` 为证据引用 ID，可被 P5 冲突登记 `Conflict.evidence_ref` 复用；
-> 4. severity 枚举严格与 `review-conflict.md` 保持一致：`BLOCKER / MAJOR / MINOR`。
+## 四、任务卡数据模型
+所有三套方案输出的任务卡统一遵守下面字段规范（DEV任务卡）：
 
-### 2.2 SolutionCompare 方案比选表结构
+|字段|类型|必填|说明|
+|---|---|---|---|
+|task_id|string|是|DEV-001，全局唯一|
+|feature_ref|string|是|关联的功能点ID FEA-XXX，用于追溯链|
+|module_id|string|是|所属业务模块 MOD-XXX|
+|title|string|是|任务标题，一卡一事|
+|depends_on|array[string]|是|依赖task_id列表，空数组代表无依赖|
+|estimate_days|number|是|工时，单位人天，范围 0.5 ~ 3.0|
+|owner_role|string|是|负责人角色，单卡只允许一个负责人|
+|acceptance_criteria|array[string]|是|验收条件，至少一条，必须可观测|
+|source_refs|array[string]|是|来源引用，指向feature_list:FEA-xxx，保障追溯链完整|
 
-| 评估维度 | 权重配置 key | 成本优先得分 | 体验优先得分 | 扩展优先得分 | 说明 |
-|---|---|---|---|---|---|
-| 开发成本 | weight_cost |  |  |  | 人力、资源、第三方开销 |
-| 用户体验 | weight_experience |  |  |  | 响应、交互、容错表现 |
-| 可扩展性 | weight_scale |  |  |  | 解耦、预留接口、面向未来迭代 |
-| 落地风险 | weight_risk |  |  |  | 阻断风险、外部依赖风险 |
-| 工期匹配度 | weight_schedule |  |  |  | 是否匹配项目迭代时间约束 |
-
-- 权重来源于配置文件 `solution_gen/config.yaml`，支持项目自定义；
-- 本比选表仅为**候选方案内部对比参考**，不作为 P5 的 ScoreCard 评审打分。P5 五维打分完全由 D 模块驱动，角色 A2 / A3 / A4 / A5 独立打分。
-
-### 2.3 BlendProposal 融合候选方案输出
-
-```json
-{
-  "proposal_id": "BP-001",
-  "base_solution_id": "S-cost-01",
-  "blend_items": [
-    {
-      "req_id": "REQ-003",
-      "selected_from_solution": "experience_first",
-      "conflict_mark": "NONE | ARCH_CONFLICT",
-      "conflict_desc": "跨方案选取实现与底层存储架构不兼容"
-    }
-  ],
-  "has_arch_conflict": true,
-  "conflict_note": "融合方案存在架构冲突，仅供评审参考，不建议直接落地"
-}
+## 五、模块接口契约
+### 5.1 统一入口
+模块对外唯一入口：
+```python
+def run(ctx: Dict[str, Any]) -> Dict[str, Any]:
 ```
+由编排器 scheduler(A) 调用。
 
-> 规则：出现 `ARCH_CONFLICT` 时，该融合方案仅作参考，不能作为主推荐方案；主推荐优先输出完整无修改的某一套原始方案。
+### 5.2 输入产物（从 ctx["artifacts"] 获取）
+|产物|来源阶段|说明|
+|---|---|---|
+|design_spec|P1|规范化设计规格，modules、scope、constraints等|
+|feature_baseline|P3|冻结的功能点清单 feature_items / features|
+|conflict_register|P3|P3冲突裁决结果，作为分解约束|
 
----
+> 本模块**禁止自行读写 runs/ 目录**，禁止调用其他 B/D/E/F 模块，只读取上下文输入，输出交给编排器落盘。
 
-## 3. 三套方案策略定义
+### 5.3 输出产物
+输出放在返回值的 artifacts 中：
+- breakdown_a：SOL_A整套WBS，携带meta
+- breakdown_b：SOL_B整套WBS，携带meta
+- breakdown_c：SOL_C整套WBS，携带meta
+- solution_comparison：三套方案比选表，携带meta
 
-1. **成本优先 cost_first**
-优先控制开发人力、服务器资源、第三方服务开销；尽量复用现有组件，减少自研工作量；选用低成本成熟开源组件；可适度牺牲部分用户体验与横向扩展能力，保障需求基础闭环。所有风险需标记 BLOCKER / MAJOR / MINOR 并写明不修复后果。
+每个产物都包含 meta 对象：schema_version、run_id、stage、produced_by、created_at。
 
-2. **体验优先 experience_first**
-优先保障端侧响应速度、交互流畅度、异常容错能力；适度放宽成本与周期约束；对高频业务链路做专项优化；优先高性能组件；扩展性不作首要目标。
+## 六、内置校验规则（models.py）
+模块内部执行如下校验，失败直接抛异常，阻断流程：
+1. **C4一致性校验**：三套方案feature_ids必须完全一致；
+2. **任务卡schema校验**：jsonschema校验全部必填字段、工时范围；
+3. **依赖合法性校验**：所有depends_on中的task_id必须在本方案tasks内存在，不允许悬空依赖；
+4. **追溯完整性校验**：每张任务卡必须携带source_refs。
 
-3. **扩展优先 scale_first**
-面向业务未来扩容与多轮迭代设计；分层解耦，预留扩展接口，做好隔离；支持后续新增需求快速接入；初期开发成本更高、周期更长，适合长期运营业务。
+## 七、上下游对接
+- **上游**：scheduler(A)编排器调用；输入来自P1/P3产物。
+- **下游**：输出给到 conflict_review(D) 用于P5评审打分；同时给到 req_builder(E) 作为P6最终WBS的蓝本。
+- **数据流原则**：单向数据流；模块之间不互相调用；所有跨模块数据由编排器注入上下文。
 
-> 强制约束：三套方案必须有明显倾向性，禁止高度趋同；每套方案至少包含 1 条 MAJOR 及以上风险。
-
----
-
-## 4. 方案比选 & 融合选取逻辑
-
-1. 读取配置权重，分别计算三套方案加权总分，得到原始排序；
-2. 逐条需求维度，从三套方案中择优选取对应功能实现；
-3. **架构冲突校验**：校验跨方案选取的实现之间架构依赖是否冲突；
-   - 存在冲突：标记 `ARCH_CONFLICT`，融合方案仅供评审参考；
-   - 无冲突：输出干净融合候选；
-4. 输出两类结果，一并提交 P5 模块：
-   - 总分最高的**完整原始方案**（主候选）
-   - 融合生成的混合候选方案（带冲突标记，仅作参考）；
-5. 输出全部风险与证据引用，供 D 模块构造 `ReviewOpinion` 与 `Conflict` 冲突登记。
-
-> 本模块**不做门禁判定**，G4 门禁全部交由 D 模块代码逻辑完成。
-
----
-
-## 5. 模块依赖关系与接口约定
-
-| 对象 | 接口约定 |
-|---|---|
-| scheduler 调度器 | 获取预算上限、迭代终止条件、全局约束；接收回炉事件，控制重试次数 |
-| req_builder 需求模块 | 输入标准化需求列表，每条带唯一 `REQ-xxx` ID；C 输出中所有功能、风险必须反向引用该 ID |
-| D 对抗评审模块（review-conflict.md） | 输出数据包：三套 `Solution` + `SolutionCompare` + `BlendProposal`；提供 `risk_id`、`evidence_ref`、`target_req_id` 供评审意见与冲突登记引用；接收回炉事件 `GATE_FAIL`，携带不达标维度与阻断风险 ID 列表；**D 不传递修改意见，C 自行完成方案修订** |
-
-### 回炉处理（C 模块内部）
-
-收到来自 D 模块的回炉指令：
-
-1. 第一次回炉：针对阻断风险与不达标维度重新生成 / 调整三套方案，保留原有需求上下文；
-2. 第二次回炉：若问题根源不在方案选型，而是需求本身分歧，上报事件，交由编排器 A 触发回退至 B 模块重开质询；
-3. 回炉计数由 scheduler 维护，达到最大迭代次数即上报事件，触发人工介入。
-
-> 对齐规约：C 不知道评审内部打分细节，仅接收失败维度与阻断风险 ID，不接收具体修改建议。
-
----
-
-## 6. 边界与约束
-
-1. 本模块仅做方案生成与内部比选；P5 的 ScoreCard、Conflict 冲突登记、Verdict 裁决、G4 门禁全部属于 D 模块职责，C 不能越权实现；
-2. 方案内所有风险项必须填写 `severity`、`impact_ref`、`if_unfixed`，为 P5 评审提供可校验素材；
-3. 禁止生成无差异三套方案；每套方案要有明确取舍与风险；
-4. 融合候选出现架构冲突时，不能升格为主推荐方案；
-5. C 作为方案作者，遵守 P5 规则，不参与五维打分。
-
----
-
-## 7. 代码目录
-
-```
-src/solution_gen/
-├── generator.py      # 成本 / 体验 / 扩展三套方案生成逻辑
-├── comparator.py     # 比选打分、功能融合、架构冲突检测
-├── schema.py         # Solution / BlendProposal 数据模型
-└── config.yaml       # 方案评估维度权重配置
-```
+## 八、模块内部执行流程
+1. run() 接收编排器传入的上下文ctx
+2. generate_breakdowns() 生成 SOL_A / SOL_B / SOL_C 三套WBS
+3. validate_breakdown() 做schema、C4、依赖合法性校验
+4. build_comparison() 生成solution_comparison比选表
+5. 打包artifacts、events、usage计数，返回给编排器
 
 > （注：部分内容由豆包 AI 生成）
