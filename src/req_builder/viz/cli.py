@@ -20,11 +20,23 @@ from typing import Any
 from .events import load_events
 from .render import render_to_file
 
-ARTIFACT_NAMES = ("schedule", "task_coverage", "dev_task_list", "design_spec", "conflict_register")
+ARTIFACT_NAMES = (
+    "schedule",
+    "coverage_matrix",   # 引擎实际产出的名字（E 原写 task_coverage，一直在读空）
+    "dev_task_list",
+    "solution_comparison",  # 功能点标题
+    "idea_card",          # 设计规格原文（P1 的产物，design_spec 在它里面）
+    "conflict_register",
+    "review_sheet",
+)
 
 
 def load_artifacts(artifact_dir: str | Path) -> dict[str, Any]:
-    """一次把渲染要用的产物读进内存：{artifact_name: 信封对象}。"""
+    """一次把渲染要用的产物读进内存：{artifact_name: 信封对象}。
+
+    兼容旧命名：task_coverage / design_spec 这两个名字引擎从来没产出过，
+    读到对应新名字时顺手补一份别名，免得老视图取不到。
+    """
     directory = Path(artifact_dir)
     bundle: dict[str, Any] = {}
     if not directory.exists():
@@ -36,6 +48,8 @@ def load_artifacts(artifact_dir: str | Path) -> dict[str, Any]:
                 bundle[name] = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{path} 不是合法 JSON：{exc}") from exc
+    if "coverage_matrix" in bundle:
+        bundle.setdefault("task_coverage", bundle["coverage_matrix"])
     return bundle
 
 

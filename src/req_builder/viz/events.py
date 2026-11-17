@@ -155,17 +155,65 @@ def budget_series(events: list[RunEvent]) -> list[dict[str, Any]]:
     return points
 
 
+GATE_TARGETS = {
+    "G_P1_P2": "P2",
+    "G_P2_P3": "P3",
+    "G_P3_P4": "P4",
+    "G_P4_P5": "P5",
+    "G_P5_P6": "P6",
+    "G_P6_P7": "P7",
+    "G_P7_BASELINE": "BASELINE_FROZEN",
+}
+
+_EXIT_LABELS = {
+    "stay": "原地返工",
+    "rework": "退回返工",
+    "escalate": "交人裁决",
+    "abort": "中止",
+    "wait_human": "待人签",
+    "freeze": "已冻结",
+}
+
+
 def gate_states(events: list[RunEvent]) -> dict[str, dict[str, Any]]:
-    """闸门灯：同一闸门多次判定取最后一次（后判为准）。"""
+    """闸门灯：同一闸门多次判定取最后一次（后判为准）。
+
+    引擎的 gate.evaluated 只记闸门号（payload_ref），没带判定结果，所以这里按事件流
+    自己推：目标阶段真的进去了 = 通过；没进去就看这条闸门之后的阶段退出动作。
+    事件是唯一事实来源，推出来的结论和 state.json 的重放结果一致。
+    """
     gates: dict[str, dict[str, Any]] = {}
-    for event in events:
+    entered = {event.stage for event in events if event.stage}
+
+    for index, event in enumerate(events):
         if event.event_type != "gate.evaluated":
             continue
-        gate_id = str(event.get("gate_id") or event.get("gate") or "")
+        gate_id = str(event.get("gate_id") or event.get("gate") or event.payload_ref or "")
         if not gate_id:
             continue
         action = str(event.get("action") or event.get("verdict") or "").lower()
         passed = bool(event.get("pass")) or action in ("advance", "freeze", "pass", "pass_next")
+        if not passed:
+            target = GATE_TARGETS.get(gate_id)
+            if target and target in entered:
+                passed, action = True, "advance"
+        if not passed and not action:
+            # 没通过：紧跟其后的阶段退出 / 终止动作就是原因
+            for nxt in events[index + 1:]:
+                if nxt.event_type == "gate.evaluated":
+                    break
+                if nxt.event_type not in ("stage.exit", "run.terminated", "human.decision"):
+                    continue
+                ref = str(nxt.payload_ref or "")
+                if nxt.event_type == "human.decision" or "human" in ref:
+                    action = "待人签"
+                    break
+                if ref == "advance":
+                    passed = True
+                    action = "advance"
+                    break
+                action = _EXIT_LABELS.get(ref, ref)
+                break
         gates[gate_id] = {
             "seq": event.seq,
             "action": action,
