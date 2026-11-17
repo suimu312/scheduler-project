@@ -12,6 +12,7 @@
     Conflict : conflict_id / issue_id / topic_id / stances / level / status / resolution
     Challenge: challenge_id / description / impact_ref / consequence / severity / category / verdict
     ScoreSheet: score_id / scores(四维原始分) / weighted_total / stddev / veto / veto_items / challenges
+            + evidence / unavailable / reviewed_scope（评审依据，别省）
 """
 
 from __future__ import annotations
@@ -56,6 +57,23 @@ CHALLENGE_CATEGORY = {"solution": "solution", "sol": "solution", "方案": "solu
                       "requirement": "requirement", "req": "requirement", "需求": "requirement",
                       "requirement_level": "requirement", "scope": "requirement"}
 SEVERITIES = ("minor", "major", "blocking")
+
+# 四个计分维度，权重和为 90；成本合理性只给估算，不计分。
+# 放在 models 而不是 rules：这是对外契约的一部分（评审单上要印权重列）。
+DIM_WEIGHTS: dict[str, int] = {
+    "completeness": 25,
+    "feasibility": 25,
+    "risk": 25,
+    "testability": 15,
+}
+
+# 按角色分派：谁负责哪一维。P5 在席的是 A2/A3/A4/A5，A1 是方案作者必须回避。
+DIM_SCORER: dict[str, str] = {
+    "completeness": "A2",   # 用户代表：功能是不是都有人接
+    "feasibility": "A3",    # 架构师：技术上做不做得到
+    "risk": "A4",           # 质量评审员：依赖、集成、返工风险
+    "testability": "A5",    # PM：验收标准能不能写出来
+}
 
 
 def _s(value: Any) -> str:
@@ -239,7 +257,13 @@ class Challenge:
 
 @dataclass
 class ScoreSheet:
-    """五维打分结果（四维计分 + 成本仅估算）。"""
+    """四维打分结果（四维计分 + 成本仅估算）。
+
+    evidence / unavailable / reviewed_scope 是「评审依据」，不是装饰：
+    - evidence[d]      该维分数由什么算出来（评审单上必须写，不能只有分数）
+    - unavailable      哪一维这次算不出来、为什么（不补 0，不假装评过）
+    - reviewed_scope   这次审了哪些功能点 / 采纳了哪几套方案 / 有几张任务卡
+    """
 
     score_id: str
     scores: dict[str, float]
@@ -251,6 +275,11 @@ class ScoreSheet:
     passed: bool = False
     reasons: list[str] = field(default_factory=list)
     rework_target: str | None = None
+    score_origin: str = "input"
+    evidence: dict[str, str] = field(default_factory=dict)
+    unavailable: list[dict[str, str]] = field(default_factory=list)
+    reviewed_scope: dict[str, Any] = field(default_factory=dict)
+    triage: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -264,34 +293,53 @@ class ScoreSheet:
             "pass": self.passed,
             "reasons": list(self.reasons),
             "rework_target": self.rework_target,
+            "score_origin": self.score_origin,
+            "evidence": dict(self.evidence),
+            "unavailable": [dict(u) for u in self.unavailable],
+            "reviewed_scope": dict(self.reviewed_scope),
+            "triage": dict(self.triage),
         }
 
     def to_review_sheet_data(self, scorer_map: dict[str, str] | None = None) -> dict[str, Any]:
         """转成 A 的 gate_check / mocks 认得的形状。
 
         gate_check.score_metrics 读：weighted_total / stddev / veto / scores[].dimension+score。
+        scores[].scorer / reason 只给报告看：谁打的分、凭什么。
+
+        打分人是按角色分派的，不是随便填一个人：
+        A2 用户代表管完整性（功能是否都有人接）、A3 架构师管可行性、
+        A4 质量评审员管风险、A5 PM 管验收可测性；A1 是被审方案作者，回避。
         """
-        scorer_map = scorer_map or {}
+        scorer_map = {**DIM_SCORER, **(scorer_map or {})}
         dim_score = [
             {
                 "dimension": dim,
                 "scorer": scorer_map.get(dim, "A2"),
                 "score": value,
-                "reason": "",
+                "weight": DIM_WEIGHTS.get(dim),
+                "reason": self.evidence.get(dim, ""),
             }
             for dim, value in self.scores.items()
         ]
+        blocking = sum(1 for v in self.veto_items if v.get("severity") == "blocking")
         return {
             "score_id": self.score_id,
             "scores": dim_score,
             "weighted_total": self.weighted_total,
             "stddev": self.stddev,
             "veto": self.veto,
-            "blocker_count": sum(1 for v in self.veto_items if v.get("severity") == "blocking")
-            or len(self.veto_items),
+            # 门禁对任何否决项都是一票否决（gate() 里 `if veto or veto_items`），
+            # 所以没有 blocking 级时 blocker_count 按否决项总条数计，别让它读成 0。
+            "blocker_count": blocking or len(self.veto_items),
+            "veto_count": len(self.veto_items),
             "veto_items": [dict(v) for v in self.veto_items],
             "challenges": [c.to_dict() for c in self.challenges],
             "rework_target": self.rework_target,
             "pass": self.passed,
             "reasons": list(self.reasons),
+            "score_origin": self.score_origin,
+            "evidence": dict(self.evidence),
+            "unavailable": [dict(u) for u in self.unavailable],
+            "reviewed_scope": dict(self.reviewed_scope),
+            "triage": dict(self.triage),
         }

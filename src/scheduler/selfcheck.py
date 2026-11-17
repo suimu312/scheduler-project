@@ -218,7 +218,11 @@ def case_wave_parallel(run_root: Path) -> dict[str, Any]:
 
 
 def case_critical_path(run_root: Path) -> dict[str, Any]:
-    """A-16：关键路径 = 001→002→004→007→008，总工期 12 天，5 个波次。"""
+    """A-16：关键路径 = 001→003→005→006→007→008，总工期 10 天，6 个波次。
+
+    数值来自 mock 的「按规格 features 分解」：没给 design_spec 时退回三条兜底功能点，
+    每个功能点拆后端 2 人天 + 界面 1 人天，再加联调 2 人天、文档 1 人天，分解是确定性的。
+    """
     rt, state, _ = _fresh("cpath", run_root)
     res = rt.run(state, human_script=[{"action": "sign"}])
     sched = rt.store.load_artifact(state.run_id, "schedule", state.artifacts_index) or {}
@@ -227,10 +231,10 @@ def case_critical_path(run_root: Path) -> dict[str, Any]:
     widths = [int(w.get("width") or 0) for w in (data.get("waves") or [])]
     ok = (
         res["status"] == "frozen"
-        and cp.get("task_ids") == ["DEV-001", "DEV-002", "DEV-004", "DEV-007", "DEV-008"]
-        and abs(float(cp.get("total_days") or 0) - 12.0) < 1e-9
-        and abs(float(data.get("total_days") or 0) - 12.0) < 1e-9
-        and widths == [1, 3, 2, 1, 1]
+        and cp.get("task_ids") == ["DEV-001", "DEV-003", "DEV-005", "DEV-006", "DEV-007", "DEV-008"]
+        and abs(float(cp.get("total_days") or 0) - 10.0) < 1e-9
+        and abs(float(data.get("total_days") or 0) - 10.0) < 1e-9
+        and widths == [1, 2, 2, 1, 1, 1]
     )
     return _result(
         "A-16 关键路径与总工期",
