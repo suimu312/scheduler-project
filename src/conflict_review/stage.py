@@ -4,7 +4,8 @@
 D 模块负责两个阶段，一个入口分发：
 
     P3  读 discussion_minutes → 扫冲突 → 三级裁决 → 写 conflict_register
-    P5  读 solution_comparison / dev_task_list → 四要素校验 + 打分 + 否决项
+    P5  读 solution_comparison / conflict_register（+ 有的话 dev_task_list）
+        → 取分（显式给 > review_input 产物 > 按产物算）→ 四要素校验 + 打分 + 否决项
         → 写 review_sheet（同时把 conflict_register 原样回传，见 STAGE_OUTPUTS）
 
 本模块不调模型（budget_used 恒为 0）：评审与裁决全是规则，
@@ -194,37 +195,88 @@ def _tasks_of(ctx: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _suspended_ids(ctx: Any) -> list[str]:
+    """还挂着等人拍板的冲突编号 —— 没收敛的问题本身就是风险，也决定回炉归因。"""
+    conflicts = ctx_artifact_data(ctx, "conflict_register").get("conflicts") or []
+    return sorted({str(c.get("conflict_id")) for c in conflicts
+                   if isinstance(c, dict) and str(c.get("status")) == "suspended"
+                   and c.get("conflict_id")})
+
+
+def _review_input(ctx: Any) -> dict[str, Any]:
+    """评审输入的三级取法里，前两级：显式配置 > review_input 产物。"""
+    config = ctx_get(ctx, "config", {}) or {}
+    for candidate in (
+        config.get("review") if isinstance(config, dict) else None,
+        ctx_artifact_data(ctx, "review_input"),
+    ):
+        if isinstance(candidate, dict) and candidate.get("scores"):
+            return candidate
+    return {}
+
+
+def _merge_challenges(manual: Any, auto: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """手写质疑优先；自动生成的那条如果已经有人指到同一个对象，就不重复提。"""
+    manual = [c for c in (manual or []) if isinstance(c, dict)]
+    taken = {str(c.get("impact_ref") or "") for c in manual}
+    return manual + [c for c in auto if str(c.get("impact_ref") or "") not in taken]
+
+
 def run_p5(ctx: Any) -> StageResult:
     run_id = str(ctx_get(ctx, "run_id", "R0001"))
-    config = ctx_get(ctx, "config", {}) or {}
-    review_input = config.get("review") if isinstance(config, dict) else None
-    if not isinstance(review_input, dict) or not review_input.get("scores"):
-        review_input = ctx_artifact_data(ctx, "review_input") or review_input or {}
 
+    tasks = _tasks_of(ctx)
+    comparison = ctx_artifact_data(ctx, "solution_comparison")
+
+    # 评审依据：不管分数从哪来，产物的清点结果和否决项都要照算
+    derived = rules.score_from_artifacts(
+        comparison, tasks, suspended_ids=_suspended_ids(ctx)
+    )
+
+    review_input = _review_input(ctx)
     scores = _score_dict(review_input.get("scores") or {})
+    origin = "explicit"
+    if not scores:
+        # 第三级：没人给分，就按产物算 —— 这才是 flow.yaml 里 P5 的常态
+        scores = derived["scores"]
+        origin = "derived"
+
     if not scores:
         return StageResult(
             stage="P5",
             status="blocked",
             errors=[make_error(
                 ErrorCode.ARTIFACT_MISSING,
-                "缺少五个维度的打分输入（review_input.scores 或 ctx.config.review.scores）",
+                "四维分数既没给也没法从产物算出来：solution_comparison 里读不到 "
+                "feature_items / rows / 人天估算（可查 solution_comparison 是否已产出）",
             )],
         )
 
-    tasks = _tasks_of(ctx)
-    veto_items = rules.find_veto_items(tasks)
-    challenges = review_input.get("challenges") or []
+    evidence = derived["evidence"] if origin == "derived" else {
+        str(k): str(v) for k, v in (review_input.get("evidence") or {}).items()
+    }
+    # unavailable 只报「最终没有分数」的维度：上游把四维都给了，就不存在未评的维度
+    scored = rules.canon_scores(scores)
+    unavailable = [u for u in derived["unavailable"] if u["dimension"] not in scored]
+
+    challenges = _merge_challenges(
+        review_input.get("challenges"),
+        rules.challenges_from_findings(derived),
+    )
     triage = rules.triage_challenges(challenges)
 
     revision_count = int(review_input.get("revision_count") or 0)
     sheet = rules.review(
         scores=scores,
         veto=bool(review_input.get("veto")),
-        veto_items=veto_items,
-        challenges=triage["accepted"],
+        veto_items=derived["veto_items"],
         revision_count=revision_count,
         score_id=str(review_input.get("score_id") or "SCR-001"),
+        evidence=evidence,
+        unavailable=unavailable,
+        scope=derived["scope"],
+        score_origin=origin,
+        triage=triage,
     )
 
     events = [make_event(run_id, "P5", "score.published", payload_ref="review_sheet")]
@@ -232,11 +284,20 @@ def run_p5(ctx: Any) -> StageResult:
         events.append(make_event(run_id, "P5", "review.passed", payload_ref="review_sheet"))
     else:
         events.append(make_event(run_id, "P5", "review.rework", payload_ref="review_sheet"))
+        if sheet.rework_target == "HUMAN":
+            events.append(make_event(run_id, "P5", "review.escalated", payload_ref="review_sheet"))
 
     guard: list[GuardSignal] = []
     if triage.get("guard"):
         g = triage["guard"]
         guard.append(GuardSignal(signal=g["signal"], value=g["value"], reason=g["reason"]))
+    if unavailable:
+        guard.append(GuardSignal(
+            signal="review_blind_spot",
+            value=float(len(unavailable)),
+            reason="有 %d 个维度本次没有依据可判：%s（已在评审单上标注，未补分）"
+            % (len(unavailable), "、".join(u["dimension"] for u in unavailable)),
+        ))
 
     prev = ctx_artifact_data(ctx, "conflict_register").get("conflicts") or []
     prev = [c for c in prev if isinstance(c, dict)]
