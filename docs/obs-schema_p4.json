@@ -1,0 +1,15 @@
+{
+  "p4_solution_gen": {
+    "events": [
+      {"name": "p4.start", "desc": "P4方案生成阶段启动"},
+      {"name": "p4.step.gen_start", "desc": "开始调用大模型生成方案"},
+      {"name": "p4.step.gen_done", "desc": "三套方案+对比表生成完成"},
+      {"name": "p4.end", "desc": "P4阶段全部完成"}
+    ],
+    "metrics": [
+      {"name": "p4_total_plan_count", "desc": "生成的方案总数"},
+      {"name": "p4_compare_dim_count", "desc": "对比维度数量"},
+      {"name": "p4_llm_call_count", "desc": "大模型调用次数"}
+    ]
+  }
+}
