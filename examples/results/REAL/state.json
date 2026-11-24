@@ -1,0 +1,101 @@
+{
+  "run_id": "REAL",
+  "status": "frozen",
+  "phase": "BASELINE_FROZEN",
+  "round_index": 1,
+  "artifacts_index": {
+    "idea_card": "examples/results/REAL/artifacts/idea_card.json",
+    "design_spec": "examples/results/REAL/artifacts/design_spec.json",
+    "convocation_table": "examples/results/REAL/artifacts/convocation_table.json",
+    "role_cards": "examples/results/REAL/artifacts/role_cards.json",
+    "problem_list": "examples/results/REAL/artifacts/problem_list.json",
+    "discussion_minutes": "examples/results/REAL/artifacts/discussion_minutes.json",
+    "guard_signals": "examples/results/REAL/artifacts/guard_signals.json",
+    "conflict_register": "examples/results/REAL/artifacts/conflict_register.json",
+    "solution_comparison": "examples/results/REAL/artifacts/solution_comparison.json",
+    "solutions": "examples/results/REAL/artifacts/solutions.json",
+    "review_input": "examples/results/REAL/artifacts/review_input.json",
+    "review_sheet": "examples/results/REAL/artifacts/review_sheet.json",
+    "dev_task_list": "examples/results/REAL/artifacts/dev_task_list.json",
+    "task_coverage": "examples/results/REAL/artifacts/task_coverage.json",
+    "requirement_spec": "examples/results/REAL/artifacts/requirement_spec.json",
+    "coverage_matrix": "examples/results/REAL/artifacts/coverage_matrix.json",
+    "confirmation_sheet": "examples/results/REAL/artifacts/confirmation_sheet.json",
+    "opinion_handling": "examples/results/REAL/artifacts/opinion_handling.json",
+    "baseline": "examples/results/REAL/artifacts/baseline.json",
+    "schedule": "examples/results/REAL/artifacts/schedule.json"
+  },
+  "ledger": {
+    "global_limit": 30,
+    "global_used": 13,
+    "per_stage_limit": {
+      "P1": 0,
+      "P2": 4,
+      "P3": 12,
+      "P4": 6,
+      "P5": 8,
+      "P6": 4,
+      "P7": 2
+    },
+    "per_stage_used": {
+      "P1": 0,
+      "P2": 1,
+      "P3": 12,
+      "P4": 0,
+      "P5": 0,
+      "P6": 0,
+      "P7": 0
+    },
+    "rounds": {},
+    "rework_count": 0,
+    "p5_revision_count": 0
+  },
+  "constraints": [],
+  "last_gate_verdict": {
+    "gate_id": "G_P7_BASELINE",
+    "from": "P7",
+    "to": "BASELINE_FROZEN",
+    "action": "freeze",
+    "reason": "baseline_signed",
+    "checks": [
+      {
+        "fn": "human_signed",
+        "result": true,
+        "detail": {
+          "action": "sign",
+          "consumed": false
+        }
+      },
+      {
+        "fn": "baseline_frozen",
+        "result": true,
+        "detail": {
+          "frozen": true,
+          "version": "v1.0"
+        }
+      }
+    ],
+    "transition": {
+      "type": "freeze",
+      "reason": "baseline_signed"
+    },
+    "evaluated_at": "2026-11-24T10:43:12+08:00"
+  },
+  "human_decisions": [
+    {
+      "decision_id": "HD-001",
+      "run_id": "REAL",
+      "at_phase": "HUMAN_GATE",
+      "action": "sign",
+      "reason": "任务分解与排期可接受（REAL 基线，脚本化模型）",
+      "payload_ref": "",
+      "decided_by": "user",
+      "decided_at": "2026-11-24T10:43:12+08:00",
+      "consumed": true
+    }
+  ],
+  "guard_signals": [],
+  "pending": {},
+  "termination_reason": "baseline_signed",
+  "updated_at": "2026-11-24T10:43:12+08:00"
+}

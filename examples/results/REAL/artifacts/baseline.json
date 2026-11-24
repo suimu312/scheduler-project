@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P7",
+    "produced_by": "baseline_mgr",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "version": "v1.0",
+    "status": "frozen",
+    "task_ids": [
+      "DEV-001",
+      "DEV-002",
+      "DEV-003"
+    ],
+    "requirement_ids": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003"
+    ],
+    "schedule_ref": "schedule:3",
+    "total_days": 5.5,
+    "critical_path": [
+      "DEV-001",
+      "DEV-002",
+      "DEV-003"
+    ],
+    "signed_by": "user",
+    "signed_at": "2026-11-24T10:43:12+08:00",
+    "source_refs": [
+      "dev_task_list:v1.0",
+      "schedule:v1.0",
+      "confirmation_sheet:v1.0"
+    ],
+    "frozen": true
+  },
+  "extensions": {
+    "artifact_name": "baseline"
+  }
+}

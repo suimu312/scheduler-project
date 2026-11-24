@@ -1,0 +1,333 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO",
+    "stage": "P7",
+    "produced_by": "scheduler",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "generated_at": "2026-11-24T10:43:12+08:00",
+    "max_wave_width": 4,
+    "meta": {
+      "run_id": "DEMO",
+      "title": "[design_spec]",
+      "baseline_version": "v1.0"
+    },
+    "errors": [],
+    "warnings": [],
+    "valid": true,
+    "tasks": [
+      {
+        "task_id": "DEV-001",
+        "title": "讨论频道的消息收发与存储",
+        "module": "messaging",
+        "kind": "backend",
+        "feature_refs": [
+          "FEA-001"
+        ],
+        "requirement_refs": [
+          "REQ-001"
+        ],
+        "owner_role": "dev_backend",
+        "estimate_days": 3,
+        "depends_on": [],
+        "acceptance": [
+          "发送一条讨论后能在该频道读到",
+          "重启服务后历史消息不丢"
+        ],
+        "deliverable": "src/messaging",
+        "wave": 1,
+        "start_day": 1.0,
+        "end_day": 3.0,
+        "slack": 0.0,
+        "critical": true
+      },
+      {
+        "task_id": "DEV-002",
+        "title": "讨论归档与全文检索",
+        "module": "archive",
+        "kind": "backend",
+        "feature_refs": [
+          "FEA-002"
+        ],
+        "requirement_refs": [
+          "REQ-002"
+        ],
+        "owner_role": "dev_backend",
+        "estimate_days": 4,
+        "depends_on": [
+          "DEV-001"
+        ],
+        "acceptance": [
+          "能按项目归档讨论",
+          "关键词能命中 90 天内的归档"
+        ],
+        "deliverable": "src/archive",
+        "wave": 2,
+        "start_day": 4.0,
+        "end_day": 7.0,
+        "slack": 0.0,
+        "critical": true
+      },
+      {
+        "task_id": "DEV-003",
+        "title": "讨论列表与详情页",
+        "module": "web-chat",
+        "kind": "frontend",
+        "feature_refs": [
+          "FEA-001"
+        ],
+        "requirement_refs": [
+          "REQ-001"
+        ],
+        "owner_role": "dev_frontend",
+        "estimate_days": 3,
+        "depends_on": [
+          "DEV-001"
+        ],
+        "acceptance": [
+          "列表按时间倒序",
+          "详情页可回复"
+        ],
+        "deliverable": "src/web-chat",
+        "wave": 2,
+        "start_day": 4.0,
+        "end_day": 6.0,
+        "slack": 1.0,
+        "critical": false
+      },
+      {
+        "task_id": "DEV-004",
+        "title": "归档筛选与搜索框",
+        "module": "web-archive",
+        "kind": "frontend",
+        "feature_refs": [
+          "FEA-002"
+        ],
+        "requirement_refs": [
+          "REQ-002"
+        ],
+        "owner_role": "dev_frontend",
+        "estimate_days": 2,
+        "depends_on": [
+          "DEV-003",
+          "DEV-002"
+        ],
+        "acceptance": [
+          "可按项目与时间筛选",
+          "搜索无结果有兜底提示"
+        ],
+        "deliverable": "src/web-archive",
+        "wave": 3,
+        "start_day": 8.0,
+        "end_day": 9.0,
+        "slack": 0.0,
+        "critical": true
+      },
+      {
+        "task_id": "DEV-005",
+        "title": "文件与结论的关联登记",
+        "module": "attachment",
+        "kind": "data",
+        "feature_refs": [
+          "FEA-003"
+        ],
+        "requirement_refs": [
+          "REQ-003"
+        ],
+        "owner_role": "dev_data",
+        "estimate_days": 3,
+        "depends_on": [
+          "DEV-001"
+        ],
+        "acceptance": [
+          "文件可挂到某条结论上",
+          "关联关系可反查"
+        ],
+        "deliverable": "src/attachment",
+        "wave": 2,
+        "start_day": 4.0,
+        "end_day": 6.0,
+        "slack": 1.0,
+        "critical": false
+      },
+      {
+        "task_id": "DEV-006",
+        "title": "外部成员的可见性边界",
+        "module": "permission",
+        "kind": "integration",
+        "feature_refs": [
+          "FEA-003"
+        ],
+        "requirement_refs": [
+          "REQ-003"
+        ],
+        "owner_role": "dev_integration",
+        "estimate_days": 2,
+        "depends_on": [
+          "DEV-005"
+        ],
+        "acceptance": [
+          "外部成员看不到内部文件",
+          "越权请求被拒并留痕"
+        ],
+        "deliverable": "src/permission",
+        "wave": 3,
+        "start_day": 7.0,
+        "end_day": 8.0,
+        "slack": 1.0,
+        "critical": false
+      },
+      {
+        "task_id": "DEV-007",
+        "title": "主链路验收用例",
+        "module": "tests",
+        "kind": "test",
+        "feature_refs": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "requirement_refs": [
+          "REQ-001",
+          "REQ-002",
+          "REQ-003"
+        ],
+        "owner_role": "dev_test",
+        "estimate_days": 2,
+        "depends_on": [
+          "DEV-004",
+          "DEV-006"
+        ],
+        "acceptance": [
+          "主链路脚本全部通过",
+          "失败用例能定位到具体卡"
+        ],
+        "deliverable": "src/tests",
+        "wave": 4,
+        "start_day": 10.0,
+        "end_day": 11.0,
+        "slack": 0.0,
+        "critical": true
+      },
+      {
+        "task_id": "DEV-008",
+        "title": "接口说明与部署手册",
+        "module": "docs",
+        "kind": "docs",
+        "feature_refs": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "requirement_refs": [
+          "REQ-001",
+          "REQ-002",
+          "REQ-003"
+        ],
+        "owner_role": "dev_docs",
+        "estimate_days": 1,
+        "depends_on": [
+          "DEV-007"
+        ],
+        "acceptance": [
+          "README 能按步骤跑起来",
+          "接口字段与返回码齐全"
+        ],
+        "deliverable": "src/docs",
+        "wave": 5,
+        "start_day": 12.0,
+        "end_day": 12.0,
+        "slack": 0.0,
+        "critical": true
+      }
+    ],
+    "waves": [
+      {
+        "wave": 1,
+        "task_ids": [
+          "DEV-001"
+        ],
+        "width": 1,
+        "start_day": 1.0,
+        "end_day": 3.0
+      },
+      {
+        "wave": 2,
+        "task_ids": [
+          "DEV-002",
+          "DEV-003",
+          "DEV-005"
+        ],
+        "width": 3,
+        "start_day": 4.0,
+        "end_day": 7.0
+      },
+      {
+        "wave": 3,
+        "task_ids": [
+          "DEV-004",
+          "DEV-006"
+        ],
+        "width": 2,
+        "start_day": 7.0,
+        "end_day": 9.0
+      },
+      {
+        "wave": 4,
+        "task_ids": [
+          "DEV-007"
+        ],
+        "width": 1,
+        "start_day": 10.0,
+        "end_day": 11.0
+      },
+      {
+        "wave": 5,
+        "task_ids": [
+          "DEV-008"
+        ],
+        "width": 1,
+        "start_day": 12.0,
+        "end_day": 12.0
+      }
+    ],
+    "critical_path": {
+      "task_ids": [
+        "DEV-001",
+        "DEV-002",
+        "DEV-004",
+        "DEV-007",
+        "DEV-008"
+      ],
+      "total_days": 12.0
+    },
+    "critical_tasks": [
+      "DEV-001",
+      "DEV-002",
+      "DEV-004",
+      "DEV-007",
+      "DEV-008"
+    ],
+    "resource_conflicts": [],
+    "total_days": 12.0,
+    "summary": {
+      "tasks": 8,
+      "waves": 5,
+      "person_days": 20.0
+    },
+    "slack": {
+      "DEV-001": 0.0,
+      "DEV-002": 0.0,
+      "DEV-003": 1.0,
+      "DEV-004": 0.0,
+      "DEV-005": 1.0,
+      "DEV-006": 1.0,
+      "DEV-007": 0.0,
+      "DEV-008": 0.0
+    },
+    "max_wave_width_actual": 3
+  },
+  "extensions": {}
+}

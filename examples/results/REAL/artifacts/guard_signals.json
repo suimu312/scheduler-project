@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P3",
+    "produced_by": "agents",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "items": [
+      {
+        "code": "SIMILARITY_DEGRADED",
+        "issue_id": "ISS-001",
+        "step": "statement",
+        "action": "lexical_detection_active"
+      }
+    ]
+  },
+  "extensions": {}
+}

@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P5",
+    "produced_by": "conflict_review",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "score_id": "SCR-P4-001",
+    "scores": [
+      {
+        "dimension": "completeness",
+        "scorer": "A2",
+        "score": 90.0,
+        "reason": ""
+      },
+      {
+        "dimension": "feasibility",
+        "scorer": "A2",
+        "score": 88.0,
+        "reason": ""
+      },
+      {
+        "dimension": "risk",
+        "scorer": "A2",
+        "score": 86.0,
+        "reason": ""
+      },
+      {
+        "dimension": "testability",
+        "scorer": "A2",
+        "score": 90.0,
+        "reason": ""
+      }
+    ],
+    "weighted_total": 88.33,
+    "stddev": 1.66,
+    "veto": false,
+    "blocker_count": 0,
+    "veto_items": [],
+    "challenges": [],
+    "rework_target": null,
+    "pass": true,
+    "reasons": []
+  },
+  "extensions": {}
+}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 10 组 · 跨运行对比页</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--border:#dfe4ed;--ink:#1d2433;--sub:#5b6478;--accent:#315efb;--good:#e7f5ea;--bad:#fff0eb;--font:'PingFang SC','Microsoft YaHei',sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px}header{background:linear-gradient(120deg,#1f3a8a,#315efb);color:#fff;padding:24px 32px}header h1{margin:0;font-size:22px}header p{margin:8px 0 0;opacity:.85;font-size:12px}main{max-width:1180px;margin:24px auto;padding:0 20px 48px}.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px;box-shadow:0 2px 10px rgba(30,45,80,.05)}h2{font-size:16px;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:left}th{background:#f7f9fd;color:var(--sub);font-weight:600;white-space:nowrap}td.metric{font-weight:600;color:var(--sub);width:180px}td.best{background:var(--good);font-weight:700}td.warn{background:var(--bad);font-weight:700}.chips{display:flex;flex-wrap:wrap;gap:8px}.chip{padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#f8faff;font-size:12px}.chip a{color:var(--accent);text-decoration:none}footer{color:var(--sub);font-size:12px;line-height:1.8}code{background:#f1f3f8;padding:2px 6px;border-radius:4px;font-size:12px}</style>
+</head>
+<body>
+<header><h1>第 10 组 · 跨运行对比页</h1><p>数据来源：examples/results/&lt;run_id&gt;/artifacts/ · 生成时间 2026-11-24T10:48:51+08:00 · 无外部资源，断网可看</p></header>
+<main>
+<section class="card"><h2>一、总览</h2><div class="chips"><span class="chip"><b>DEMO</b> · frozen · 18 份产物 · 75 条事件</span><span class="chip"><b>REAL</b> · frozen · 20 份产物 · 89 条事件</span></div></section>
+<section class="card"><h2>二、指标对照（数字均直接读自产物）</h2><table><thead><tr><th>指标</th><th>DEMO</th><th>REAL</th></tr></thead><tbody>
+<tr><td class="metric">运行状态</td><td>frozen</td><td>frozen</td></tr>
+<tr><td class="metric">阶段</td><td>BASELINE_FROZEN</td><td>BASELINE_FROZEN</td></tr>
+<tr><td class="metric">模型来源</td><td>mock / offline</td><td>real / scripted</td></tr>
+<tr><td class="metric">产物数</td><td>18</td><td class="best">20</td></tr>
+<tr><td class="metric">事件数</td><td>75</td><td class="best">89</td></tr>
+<tr><td class="metric">model.call 事件</td><td class="best">0</td><td class="best">0</td></tr>
+<tr><td class="metric">规则判定事件</td><td class="best">8</td><td class="best">8</td></tr>
+<tr><td class="metric">任务卡数</td><td class="best">8</td><td>3</td></tr>
+<tr><td class="metric">波次数</td><td class="best">5</td><td>3</td></tr>
+<tr><td class="metric">总工期（天）</td><td>12</td><td class="best">5.5</td></tr>
+<tr><td class="metric">关键路径长度</td><td>5</td><td>3</td></tr>
+<tr><td class="metric">覆盖率</td><td class="best">1</td><td class="best">1</td></tr>
+<tr><td class="metric">覆盖空缺</td><td class="best">0</td><td class="best">0</td></tr>
+<tr><td class="metric">冲突数</td><td>2</td><td>1</td></tr>
+<tr><td class="metric">基线版本</td><td>v1.0</td><td>v1.0</td></tr>
+<tr><td class="metric">基线冻结</td><td>是</td><td>是</td></tr>
+<tr><td class="metric">签字人</td><td>user</td><td>user</td></tr>
+<tr><td class="metric">签字时间</td><td>2026-11-24T10:43:12+08:00</td><td>2026-11-24T10:43:12+08:00</td></tr>
+</tbody></table></section>
+<section class="card"><h2>三、产物追溯（点击直达 JSON）</h2><table><thead><tr><th>产物</th><th>DEMO</th><th>REAL</th></tr></thead><tbody>
+<tr><td class="metric"><code>design_spec.json</code></td><td><a href="DEMO/artifacts/design_spec.json">查看产物</a></td><td><a href="REAL/artifacts/design_spec.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>discussion_minutes.json</code></td><td><a href="DEMO/artifacts/discussion_minutes.json">查看产物</a></td><td><a href="REAL/artifacts/discussion_minutes.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>conflict_register.json</code></td><td><a href="DEMO/artifacts/conflict_register.json">查看产物</a></td><td><a href="REAL/artifacts/conflict_register.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>solution_comparison.json</code></td><td><a href="DEMO/artifacts/solution_comparison.json">查看产物</a></td><td><a href="REAL/artifacts/solution_comparison.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>review_sheet.json</code></td><td><a href="DEMO/artifacts/review_sheet.json">查看产物</a></td><td><a href="REAL/artifacts/review_sheet.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>dev_task_list.json</code></td><td><a href="DEMO/artifacts/dev_task_list.json">查看产物</a></td><td><a href="REAL/artifacts/dev_task_list.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>coverage_matrix.json</code></td><td><a href="DEMO/artifacts/coverage_matrix.json">查看产物</a></td><td><a href="REAL/artifacts/coverage_matrix.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>schedule.json</code></td><td><a href="DEMO/artifacts/schedule.json">查看产物</a></td><td><a href="REAL/artifacts/schedule.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>confirmation_sheet.json</code></td><td><a href="DEMO/artifacts/confirmation_sheet.json">查看产物</a></td><td><a href="REAL/artifacts/confirmation_sheet.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>opinion_handling.json</code></td><td><a href="DEMO/artifacts/opinion_handling.json">查看产物</a></td><td><a href="REAL/artifacts/opinion_handling.json">查看产物</a></td></tr>
+<tr><td class="metric"><code>baseline.json</code></td><td><a href="DEMO/artifacts/baseline.json">查看产物</a></td><td><a href="REAL/artifacts/baseline.json">查看产物</a></td></tr>
+</tbody></table></section>
+<section class="card"><footer>生成逻辑：<code>src/baseline_mgr/compare.py</code>；每组运行的状态取自 <code>state.json</code>，指标取自 <code>artifacts/*.json</code>，事件计数取自 <code>events.jsonl</code>。model.call 为 0 表示当前运行没有真实模型调用事件，对应作业 2 的 W6 尚未达标；本页不将其包装为已完成。<br>多运行演示页（七视图切换）由 E 的 <code>python -m req_builder.viz --run-root examples/results --all-runs</code> 生成，本页与其互补：本页比数字与产物，那页看流程与回放。</footer></section>
+</main>
+</body>
+</html>

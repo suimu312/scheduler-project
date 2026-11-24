@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO",
+    "stage": "P4",
+    "produced_by": "solution_gen",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "scores": {
+      "completeness": 88,
+      "feasibility": 86,
+      "risk": 84,
+      "testability": 85,
+      "cost": 80
+    },
+    "challenges": [],
+    "veto": false
+  },
+  "extensions": {}
+}

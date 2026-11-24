@@ -1,0 +1,290 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P3",
+    "produced_by": "agents",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "issue": {
+      "issue_id": "ISS-001",
+      "topic_id": "granularity",
+      "description": "是否按可验收的核心用户流程组织首批开发任务，同时显式列出依赖、工时依据和必要保障？"
+    },
+    "round": 1,
+    "completed_steps": [
+      "statement",
+      "query",
+      "vote"
+    ],
+    "statements": [
+      {
+        "agent_id": "A1",
+        "position": "FOR",
+        "claim": "先按本期设计规格锁定交付边界，再按可观察到的结果组织首批开发任务。",
+        "source_refs": [
+          "material_catalog:MAT-001"
+        ],
+        "id": "ST-ISS-001-1-A1",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A2",
+        "position": "FOR",
+        "claim": "核心用户路径必须先走通，验收应围绕实际操作后的可见结果展开。",
+        "source_refs": [
+          "material_catalog:MAT-003"
+        ],
+        "id": "ST-ISS-001-1-A2",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A3",
+        "position": "AGAINST",
+        "claim": "接口前置条件决定依赖方向，任务边界需要沿模块契约单向排列。",
+        "source_refs": [
+          "material_catalog:MAT-004"
+        ],
+        "id": "ST-ISS-001-1-A3",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A4",
+        "position": "AGAINST",
+        "claim": "风险与异常路径要独立验收，不能用正常流程通过来替代失败拦截。",
+        "source_refs": [
+          "material_catalog:MAT-005"
+        ],
+        "id": "ST-ISS-001-1-A4",
+        "issue_id": "ISS-001"
+      }
+    ],
+    "qa": [
+      {
+        "id": "QA-ISS-001-1-A1",
+        "issue_id": "ISS-001",
+        "round": 1,
+        "from": "A3",
+        "to": "A1",
+        "target_ref": "discussion_minutes:ST-ISS-001-1-A1",
+        "conflict_ref": "conflict_register:CFL-001",
+        "question": "你提出“先按本期设计规格锁定交付边界，再按可观察到的结果组织首批开发任务。”。请说明该切分决策的适用条件、代价及可验证依据。",
+        "answer": "该切法适用于本期范围已确认的场景；代价是增强项顺延，以范围清单作为验证依据。",
+        "source_refs": [
+          "material_catalog:MAT-001"
+        ]
+      },
+      {
+        "id": "QA-ISS-001-1-A2",
+        "issue_id": "ISS-001",
+        "round": 1,
+        "from": "A3",
+        "to": "A2",
+        "target_ref": "discussion_minutes:ST-ISS-001-1-A2",
+        "conflict_ref": "conflict_register:CFL-001",
+        "question": "你提出“核心用户路径必须先走通，验收应围绕实际操作后的可见结果展开。”。请说明该切分决策的适用条件、代价及可验证依据。",
+        "answer": "该切法适用于需要观察用户价值的场景；代价是失败反馈也要验收，以操作结果作为依据。",
+        "source_refs": [
+          "material_catalog:MAT-003"
+        ]
+      },
+      {
+        "id": "QA-ISS-001-1-A3",
+        "issue_id": "ISS-001",
+        "round": 1,
+        "from": "A1",
+        "to": "A3",
+        "target_ref": "discussion_minutes:ST-ISS-001-1-A3",
+        "conflict_ref": "conflict_register:CFL-001",
+        "question": "你提出“接口前置条件决定依赖方向，任务边界需要沿模块契约单向排列。”。请说明该切分决策的适用条件、代价及可验证依据。",
+        "answer": "该切法适用于接口契约清晰的场景；代价是先固定契约，以接口字段和调用顺序作为依据。",
+        "source_refs": [
+          "material_catalog:MAT-004"
+        ]
+      },
+      {
+        "id": "QA-ISS-001-1-A4",
+        "issue_id": "ISS-001",
+        "round": 1,
+        "from": "A1",
+        "to": "A4",
+        "target_ref": "discussion_minutes:ST-ISS-001-1-A4",
+        "conflict_ref": "conflict_register:CFL-001",
+        "question": "你提出“风险与异常路径要独立验收，不能用正常流程通过来替代失败拦截。”。请说明该切分决策的适用条件、代价及可验证依据。",
+        "answer": "该切法适用于有明确风险底线的场景；代价是补负向用例，以拦截日志作为依据。",
+        "source_refs": [
+          "material_catalog:MAT-005"
+        ]
+      }
+    ],
+    "votes": [
+      {
+        "agent_id": "A1",
+        "ballot": "FOR",
+        "reason": "范围条目可逐项核对，先交付最小闭环符合成本约束。",
+        "source_refs": [
+          "material_catalog:MAT-001"
+        ],
+        "id": "VOTE-ISS-001-1-A1",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A2",
+        "ballot": "FOR",
+        "reason": "关键路径能形成可观察结果，用户价值不会被技术步骤掩盖。",
+        "source_refs": [
+          "material_catalog:MAT-003"
+        ],
+        "id": "VOTE-ISS-001-1-A2",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A3",
+        "ballot": "AGAINST",
+        "reason": "依赖方向必须先固定，否则并行实现会产生接口返工。",
+        "source_refs": [
+          "material_catalog:MAT-004"
+        ],
+        "id": "VOTE-ISS-001-1-A3",
+        "issue_id": "ISS-001"
+      },
+      {
+        "agent_id": "A4",
+        "ballot": "ABSTAIN",
+        "reason": "风险验收需要独立证据，当前材料不足以支持提前放行。",
+        "source_refs": [
+          "material_catalog:MAT-005"
+        ],
+        "id": "VOTE-ISS-001-1-A4",
+        "issue_id": "ISS-001"
+      }
+    ],
+    "similarity_reports": [
+      {
+        "pair": [
+          "A1",
+          "A2"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.017857142857142856,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A1",
+          "A3"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.037037037037037035,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A2",
+          "A3"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.0,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A1",
+          "A4"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.0,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A2",
+          "A4"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.038461538461538464,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      },
+      {
+        "pair": [
+          "A3",
+          "A4"
+        ],
+        "semantic_score": null,
+        "lexical_score": 0.0,
+        "degraded": true,
+        "flagged": false,
+        "retry": 0
+      }
+    ],
+    "guard_signals": [
+      {
+        "code": "SIMILARITY_DEGRADED",
+        "issue_id": "ISS-001",
+        "step": "statement",
+        "action": "lexical_detection_active"
+      }
+    ],
+    "conflict_candidates": [
+      {
+        "topic_id": "granularity",
+        "source_refs": [
+          "discussion_minutes:ST-ISS-001-1-A1",
+          "discussion_minutes:ST-ISS-001-1-A3"
+        ]
+      },
+      {
+        "topic_id": "granularity",
+        "source_refs": [
+          "discussion_minutes:ST-ISS-001-1-A1",
+          "discussion_minutes:ST-ISS-001-1-A4"
+        ]
+      },
+      {
+        "topic_id": "granularity",
+        "source_refs": [
+          "discussion_minutes:ST-ISS-001-1-A2",
+          "discussion_minutes:ST-ISS-001-1-A3"
+        ]
+      },
+      {
+        "topic_id": "granularity",
+        "source_refs": [
+          "discussion_minutes:ST-ISS-001-1-A2",
+          "discussion_minutes:ST-ISS-001-1-A4"
+        ]
+      }
+    ],
+    "extensions": {
+      "template_versions": {
+        "A1": "1.0.1",
+        "A2": "1.0.1",
+        "A3": "1.0.1",
+        "A4": "1.0.1",
+        "A5": "1.0.1",
+        "A6": "1.0.1"
+      },
+      "config_fingerprint": "fce21d91618b0ff79700c2936ce6878bdeebb5d141ad48c427819fda40fc14de",
+      "similarity_mode": "lexical_degraded",
+      "model_attempts_this_step": 4
+    },
+    "tally": {
+      "FOR": 2,
+      "AGAINST": 1,
+      "ABSTAIN": 1
+    },
+    "valid_vote_count": 4
+  },
+  "extensions": {}
+}
