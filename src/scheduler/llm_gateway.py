@@ -47,6 +47,16 @@ def known_providers() -> list[str]:
     return sorted({"offline", "agents", *_PROVIDER_FACTORIES})
 
 
+def _ark_completions_provider(**_kwargs: Any) -> Provider:
+    """接 Chat Completions 真实模型（读 ARK_API_KEY/ARK_MODEL 或 LLM_* 环境变量）。"""
+    from src.agents.providers import ChatCompletionsProvider
+
+    return ChatCompletionsProvider.from_env()
+
+
+register_provider("ark", _ark_completions_provider)
+
+
 def adapt_model(model: Any, *, system: str = "", timeout: int = 120) -> Provider:
     """把"收一个 dict、吐一个 dict"的模型适配成 Gateway 的 Provider 签名。
 
