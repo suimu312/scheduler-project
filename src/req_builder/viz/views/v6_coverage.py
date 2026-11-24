@@ -29,7 +29,9 @@ MAX_COLW = 26
 
 
 def _coverage_of(artifacts: dict[str, Any]) -> dict[str, Any]:
-    raw = artifacts.get("task_coverage")
+    # E 的产物名是 task_coverage；A 早期版本落的是 coverage_matrix，
+    # 两者 data 形状一致（rows / columns / gap_count / coverage_rate），直接兼容。
+    raw = artifacts.get("task_coverage") or artifacts.get("coverage_matrix")
     if not raw:
         return {}
     return raw.get("data", raw) if isinstance(raw, dict) else {}

@@ -24,18 +24,26 @@ ARTIFACT_NAMES = ("schedule", "task_coverage", "dev_task_list", "design_spec", "
 
 
 def load_artifacts(artifact_dir: str | Path) -> dict[str, Any]:
-    """一次把渲染要用的产物读进内存：{artifact_name: 信封对象}。"""
+    """把渲染要用的产物读进内存：{artifact_name: 信封对象}。
+
+    读整个目录里的 `*.json`，不只读固定几个名字——七视图只消费其中三份，
+    但阶段产物抽屉要把每个阶段的落盘产物都列出来供下载，漏读就等于抽屉是空的。
+    """
     directory = Path(artifact_dir)
     bundle: dict[str, Any] = {}
     if not directory.exists():
         return bundle
-    for name in ARTIFACT_NAMES:
-        path = directory / f"{name}.json"
-        if path.exists():
-            try:
-                bundle[name] = json.loads(path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"{path} 不是合法 JSON：{exc}") from exc
+    # 固定名字先读，保证它们一定在；其余按文件名顺序补齐
+    candidates = [directory / f"{name}.json" for name in ARTIFACT_NAMES]
+    candidates += [p for p in sorted(directory.glob("*.json")) if p not in candidates]
+    for path in candidates:
+        if not path.exists():
+            continue
+        name = path.stem
+        try:
+            bundle[name] = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path} 不是合法 JSON：{exc}") from exc
     return bundle
 
 

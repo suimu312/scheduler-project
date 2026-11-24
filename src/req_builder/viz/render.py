@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ..contracts import RunEvent
+from . import drawer, hydrate
 from .events import ReplayWindow
 from .svg import svg_open
 from .theme import (
@@ -34,14 +35,55 @@ def _artifact_bundle(artifacts: dict[str, Any] | None) -> dict[str, Any]:
     return dict(artifacts or {})
 
 
+def _counters(window: ReplayWindow) -> dict[str, Any]:
+    """顶栏两个计数：模型调用 N 次、规则判定 M 次。
+
+    口径写死在这里，免得答辩时说不清：
+    - 模型调用：优先数 `model.call` 事件；mock 路径不落该事件，则退到 `budget.charged`
+      的 `global_used`（每次模型调用计 1 次，与预算条同源）。
+    - 规则判定：`gate.evaluated` 条数。闸门是纯函数，不计费。
+    """
+    model_events = sum(1 for e in window.events if e.event_type == "model.call")
+    charged = 0
+    for event in window.events:
+        if event.event_type == "budget.charged":
+            payload = getattr(event, "payload", None) or {}
+            try:
+                charged = max(charged, int(payload.get("global_used") or 0))
+            except (TypeError, ValueError):
+                continue
+        try:
+            charged = max(charged, int(getattr(event, "budget_used", 0) or 0))
+        except (TypeError, ValueError):
+            continue
+    calls = model_events if model_events else charged
+    rules = sum(1 for e in window.events if e.event_type == "gate.evaluated")
+    return {
+        "model_calls": calls,
+        "charged": charged,
+        "model_events": model_events,
+        "rules": rules,
+    }
+
+
 def _header(window: ReplayWindow, run_id: str, until_seq: int) -> str:
     stages = sorted({str(e.stage) for e in window.events if e.stage}, key=lambda s: s)
     last_stage = str(window.last("stage.enter").get("stage")) if window.last("stage.enter") else "—"
+    counts = _counters(window)
+    tip = (
+        f"模型调用按预算计费口径（global_used={counts['charged']}）；"
+        f"本次事件流里 model.call 落 {counts['model_events']} 条。规则判定=gate.evaluated 条数，不计费。"
+    )
     return f"""
 <header class="page-head">
   <div class="head-left">
     <div class="title">多智能体任务分解与编排系统 · 执行可视化</div>
     <div class="sub">run_id <b>{run_id}</b> · 截止序号 <b>EVT-{until_seq:05d}</b> · 当前阶段 <b>{last_stage}</b> · 事件 {len(window.events)} 条</div>
+    <div class="counters" title="{tip}">
+      <span class="ctr"><b>{counts['model_calls']}</b> 次模型调用</span>
+      <span class="ctr sep"><b>{counts['rules']}</b> 次规则判定</span>
+      <span class="ctr-note">闸门不计费</span>
+    </div>
   </div>
   <div class="head-right">
     <div class="legend"><span class="dot must"></span>Must <span class="dot critical"></span>关键路径
@@ -72,7 +114,9 @@ def render_views(
 ) -> str:
     """纯函数：同样的入参永远得到同一份 HTML（时间戳除外，由调用方注入）。"""
     event_list = list(events)
-    window = ReplayWindow.of(event_list, until_seq)
+    hydrated = hydrate.hydrate_events(list(event_list), artifacts)
+    hydrate.infer_gate_verdicts(hydrated)
+    window = ReplayWindow.of(hydrated, until_seq)
     bundle = _artifact_bundle(artifacts)
     run_id = next((e.run_id for e in event_list if e.run_id), "R0001")
     total = window.until_seq
@@ -117,6 +161,45 @@ def render_views(
   .title {{ font-size: 19px; font-weight: 700; letter-spacing: .3px; }}
   .sub {{ margin-top: 6px; color: var(--sub); font-size: 11.5px; }}
   .sub b {{ color: var(--ink); }}
+  .counters {{ margin-top: 7px; display: flex; gap: 14px; align-items: baseline; font-size: 11px; color: var(--sub); }}
+  .ctr b {{ font-size: 15px; color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 3px; }}
+  .ctr.sep {{ padding-left: 14px; border-left: 1px solid var(--border); }}
+  .ctr-note {{ color: var(--faint); font-size: 10px; }}
+  .stage-strip {{ display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 10px; }}
+  .stage-chip {{ display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+    border: 1px solid var(--border); background: #fff; border-radius: 7px; padding: 5px 10px 6px;
+    cursor: pointer; line-height: 1.25; }}
+  .stage-chip b {{ font-size: 12px; color: var(--accent); }}
+  .stage-chip span {{ font-size: 11px; color: var(--ink); }}
+  .stage-chip i {{ font-style: normal; font-size: 10px; color: var(--faint); }}
+  .stage-chip:hover {{ border-color: var(--accent); }}
+  .stage-chip.active {{ border-color: var(--accent); background: #f2f6ff; box-shadow: inset 0 0 0 1px var(--accent); }}
+  .drawer-panel {{ border-top: 1px dashed var(--border); padding-top: 10px; }}
+  .drawer-head {{ display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; }}
+  .drawer-head b {{ font-size: 12.5px; }}
+  .drawer-cols {{ display: grid; grid-template-columns: 1fr 1.1fr 1.2fr; gap: 12px; }}
+  .drawer-col h4 {{ margin: 0 0 6px; font-size: 11.5px; color: var(--ink); font-weight: 700; }}
+  .drawer-empty {{ color: var(--faint); font-size: 10.5px; }}
+  .drawer-file {{ display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; margin-bottom: 5px; }}
+  .fname {{ font-size: 11px; font-family: ui-monospace, Consolas, monospace; }}
+  .fby {{ margin-left: 6px; color: var(--faint); font-size: 9.5px; }}
+  .mini {{ border: 1px solid var(--border); background: #fff; border-radius: 5px; padding: 1px 7px;
+    font-size: 10px; cursor: pointer; font-family: inherit; color: var(--ink); }}
+  .mini:hover {{ border-color: var(--accent); color: var(--accent); }}
+  .mini.ghost {{ color: var(--sub); }}
+  .drawer-row {{ display: flex; gap: 6px; align-items: baseline; font-size: 10.5px; margin-bottom: 4px; line-height: 1.45; }}
+  .tag {{ border-radius: 4px; padding: 0 5px; font-size: 9.5px; background: #eef2f9; color: var(--accent); }}
+  .tag.advance {{ background: #e7f6ec; color: #2b8a3e; }}
+  .tag.rework {{ background: #fff4e6; color: #d9480f; }}
+  .tag.freeze {{ background: #eef2f9; color: #364fc7; }}
+  .tag.guard {{ background: #f3f0ff; color: #6741d9; }}
+  .tag.human {{ background: #fff9db; color: #a07800; }}
+  .dim {{ color: var(--faint); }}
+  .seq {{ color: var(--accent); text-decoration: none; font-variant-numeric: tabular-nums; }}
+  .peek {{ margin: 10px 0 0; max-height: 260px; overflow: auto; background: #f8f9fb;
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; line-height: 1.5; }}
   .head-right {{ text-align: right; color: var(--faint); font-size: 10.5px; }}
   .legend {{ display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-bottom: 6px; }}
   .dot {{ width: 9px; height: 9px; border-radius: 50%; display: inline-block; }}
@@ -152,6 +235,7 @@ def render_views(
 {_header(window, run_id, total)}
 {_section(VIEWS[3], *bodies["V4"], extra_class="topbar")}
 {_section(VIEWS[0], *bodies["V1"])}
+{drawer.render_drawer(window, bundle)}
 {grid}
 {_section(VIEWS[4], *bodies["V5"])}
 {_section(VIEWS[5], *bodies["V6"])}
@@ -208,6 +292,7 @@ def render_views(
   document.getElementById('btn-prev').addEventListener('click', prev);
   apply({total});
 }})();
+{drawer.drawer_script()}
 </script>
 </body>
 </html>
