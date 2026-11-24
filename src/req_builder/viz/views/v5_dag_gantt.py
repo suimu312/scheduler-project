@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from .. import svg
@@ -67,6 +68,31 @@ def _fallback_schedule(artifacts: dict[str, Any]) -> dict[str, Any]:
     return {"tasks": rows, "total_days": max(day - 1, 1), "fallback": True}
 
 
+def _critical_ids(value: Any) -> list[str]:
+    """兼容两种关键路径形状：A 的 {"task_ids": [...], "total_days": n} 与纯列表。"""
+    if isinstance(value, dict):
+        ids = value.get("task_ids") or value.get("tasks") or value.get("ids") or []
+        return [str(item) for item in ids if item]
+    if isinstance(value, (list, tuple)):
+        return [str(item) for item in value if item]
+    return []
+
+
+def _total_days_of(schedule: dict[str, Any], rows: list[dict[str, Any]]) -> float:
+    """总工期优先取 schedule.total_days；A 也可能把它塞在 critical_path.total_days 里。"""
+    candidates: list[Any] = [schedule.get("total_days")]
+    critical = schedule.get("critical_path")
+    if isinstance(critical, dict):
+        candidates.append(critical.get("total_days"))
+    for value in candidates:
+        try:
+            if value is not None and float(value) > 0:
+                return float(value)
+        except (TypeError, ValueError):
+            continue
+    return float(max((float(r.get("end_day") or 1) for r in rows), default=1))
+
+
 def _rows(schedule: dict[str, Any]) -> list[dict[str, Any]]:
     tasks = [dict(t) for t in schedule.get("tasks") or [] if isinstance(t, dict)]
     if not tasks:
@@ -79,7 +105,7 @@ def render(window: ReplayWindow, artifacts: dict, width: float = 1180) -> tuple[
     schedule = _schedule_of(artifacts) or _fallback_schedule(artifacts)
     rows = _rows(schedule)
     waves = sorted({int(r.get("wave_no") or 1) for r in rows}) or [1]
-    total_days = max(1, int(schedule.get("total_days") or max((int(r.get("end_day") or 1) for r in rows), default=1)))
+    total_days = max(1, int(math.ceil(_total_days_of(schedule, rows))))
     limit = int(schedule.get("parallel_limit") or 3)
     height = TOP + max(1, len(rows)) * ROW_H + 46
 
@@ -180,7 +206,9 @@ def render(window: ReplayWindow, artifacts: dict, width: float = 1180) -> tuple[
                                   weight="bold" if critical else "normal"))
 
     # 关键路径与并行度标注
-    critical_path = schedule.get("critical_path") or [
+    # A 的 schedule.json 里 critical_path 是对象 {"task_ids": [...], "total_days": 12.0}，
+    # 而 E 自己的 demo 写的是任务号列表；两种形状都要认，否则会把字典的键当成任务号画出来。
+    critical_path = _critical_ids(schedule.get("critical_path")) or [
         r.get("task_id") for r in rows if r.get("critical") or r.get("on_path")
     ]
     if critical_path:
