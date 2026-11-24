@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import opinions as opinion_rules
 from . import rules
 from .contracts import (
     PRODUCER,
@@ -309,8 +310,31 @@ def run_p5(ctx: Any) -> StageResult:
         }),
     }
 
+    # 意见处理表：评审单上的每条质疑，按 P5 手上能读到的产物判成三态处置。
+    # 处置结果同时回填到 challenges[].verdict —— 评审单只留一个结论口径，
+    # 不让"质疑说 PENDING、处理表说 ACCEPTED"这种自相矛盾出现在同一份产物里。
+    opinions = opinion_rules.build_opinions(sheet.challenges, comparison, register)
+    dropped = opinion_rules.count_dropped(sheet.challenges)
+    by_challenge = {o["challenge_id"]: o["verdict"] for o in opinions}
+    for challenge in sheet.challenges:
+        if challenge.challenge_id in by_challenge:
+            challenge.verdict = by_challenge[challenge.challenge_id]
+
+    opinion_errors = opinion_rules.validate_opinions(opinions)
+    if opinion_errors:
+        guard.append(GuardSignal(
+            signal="opinion_uncheckable",
+            value=float(len(opinion_errors)),
+            reason="有 %d 条意见的处置理由不含可核对内容：%s"
+            % (len(opinion_errors), "；".join(opinion_errors[:3])),
+        ))
+
+    sheet_data = sheet.to_review_sheet_data()
+    sheet_data["opinion_handling"] = opinions
+    sheet_data["opinion_summary"] = opinion_rules.summarize(opinions, dropped=dropped)
+
     artifacts = {
-        "review_sheet": make_artifact(sheet.to_review_sheet_data(), run_id, "P5", PRODUCER),
+        "review_sheet": make_artifact(sheet_data, run_id, "P5", PRODUCER),
         "conflict_register": make_artifact(register, run_id, "P5", PRODUCER),
     }
 
