@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO-WX",
+    "stage": "P1",
+    "produced_by": "scheduler",
+    "created_at": "2026-11-24T10:08:06+08:00"
+  },
+  "data": {
+    "idea_text": "[design_spec] 微信群讨论归档助手 让一个 50 人以内的小组在微信之外也能把讨论过程沉淀下来、按结论回溯",
+    "author": "demo",
+    "constraints": [],
+    "design_spec": {
+      "product_name": "微信群讨论归档助手",
+      "goal": "让一个 50 人以内的小组在微信之外也能把讨论过程沉淀下来、按结论回溯",
+      "scope": [
+        "围绕单个项目建讨论频道，消息按时间线沉淀",
+        "讨论可归档并按项目、时间、关键词检索",
+        "文件与结论可互相关联，方便复盘"
+      ],
+      "constraints": [
+        "只做 PC 端 Web，不做小程序",
+        "单项目成员上限 100",
+        "不做已读回执"
+      ],
+      "features": [
+        "讨论频道的消息收发与存储",
+        "讨论归档与全文检索",
+        "文件与结论的关联登记"
+      ],
+      "non_goals": [
+        "不做即时语音视频",
+        "不做跨企业多租户"
+      ]
+    },
+    "input_mode": "design_spec"
+  },
+  "extensions": {}
+}

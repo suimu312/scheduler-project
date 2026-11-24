@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO-WX",
+    "stage": "P3",
+    "produced_by": "agents",
+    "created_at": "2026-11-24T10:08:06+08:00"
+  },
+  "data": {
+    "statements": [
+      {
+        "statement_id": "ST-002-01",
+        "agent_id": "A2",
+        "topic_id": "message_channel",
+        "position": "must_have_archived_search",
+        "quote": "讨论要能按项目归档并搜到"
+      },
+      {
+        "statement_id": "ST-003-01",
+        "agent_id": "A3",
+        "topic_id": "message_channel",
+        "position": "reuse_oss_channel",
+        "quote": "复用开源消息组件更稳"
+      },
+      {
+        "statement_id": "ST-001-01",
+        "agent_id": "A1",
+        "topic_id": "scope",
+        "position": "keep_scope_small",
+        "quote": "先做最小闭环"
+      },
+      {
+        "statement_id": "ST-004-01",
+        "agent_id": "A4",
+        "topic_id": "permission",
+        "position": "must_isolate",
+        "quote": "外部成员不能看到内部文件"
+      }
+    ],
+    "query_pairs": [
+      {
+        "asker": "A2",
+        "responder": "A3",
+        "quote_ref": "statement:ST-003-01",
+        "answer": "复用组件可覆盖归档检索"
+      }
+    ],
+    "votes": [
+      {
+        "conflict_id": "CFL-001",
+        "votes": [
+          {
+            "agent_id": "A2",
+            "value": "accept"
+          },
+          {
+            "agent_id": "A3",
+            "value": "accept"
+          }
+        ]
+      },
+      {
+        "conflict_id": "CFL-002",
+        "votes": [
+          {
+            "agent_id": "A2",
+            "value": "accept"
+          },
+          {
+            "agent_id": "A3",
+            "value": "accept"
+          }
+        ]
+      }
+    ],
+    "supplements": [],
+    "round_index": 1
+  },
+  "extensions": {}
+}

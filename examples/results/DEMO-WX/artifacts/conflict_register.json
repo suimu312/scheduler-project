@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO-WX",
+    "stage": "P5",
+    "produced_by": "conflict_review",
+    "created_at": "2026-11-24T10:08:06+08:00"
+  },
+  "data": {
+    "conflicts": [
+      {
+        "conflict_id": "CFL-001",
+        "topic_id": "message_channel",
+        "stances": [
+          {
+            "agent_id": "A2",
+            "position": "must_have_archived_search",
+            "evidence_refs": [
+              "statement:ST-002-01"
+            ]
+          },
+          {
+            "agent_id": "A3",
+            "position": "reuse_oss_channel",
+            "evidence_refs": [
+              "cost_estimate:CE-001"
+            ]
+          }
+        ],
+        "level": "L1_evidence",
+        "status": "resolved",
+        "resolution": {
+          "type": "evidence",
+          "winner": "A3",
+          "decided_by": "conflict_review",
+          "reason": "有开源组件复用成本数据",
+          "round_index": 1
+        },
+        "source_refs": [
+          "statement:ST-002-01",
+          "statement:ST-003-01"
+        ]
+      },
+      {
+        "conflict_id": "CFL-002",
+        "topic_id": "scope",
+        "stances": [
+          {
+            "agent_id": "A1",
+            "position": "keep_scope_small",
+            "evidence_refs": []
+          },
+          {
+            "agent_id": "A2",
+            "position": "include_archive",
+            "evidence_refs": [
+              "user_interview:UI-001"
+            ]
+          }
+        ],
+        "level": "L2_weighted_vote",
+        "status": "resolved",
+        "resolution": {
+          "type": "weighted_vote",
+          "winner": "A2",
+          "decided_by": "conflict_review",
+          "reason": "A2 权重 1.5 占优",
+          "round_index": 1
+        },
+        "source_refs": [
+          "statement:ST-001-01",
+          "statement:ST-002-01"
+        ]
+      }
+    ],
+    "open_count": 0,
+    "escalated_ids": []
+  },
+  "extensions": {}
+}

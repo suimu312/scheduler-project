@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO-WX",
+    "stage": "P2",
+    "produced_by": "agents",
+    "created_at": "2026-11-24T10:08:06+08:00"
+  },
+  "data": {
+    "problems": [
+      {
+        "problem_id": "PRB-001",
+        "summary": "小团队讨论记录散落在多个工具",
+        "types": [
+          "functional"
+        ],
+        "confidence": "high",
+        "owner_roles": [
+          "A2"
+        ]
+      },
+      {
+        "problem_id": "PRB-002",
+        "summary": "文件版本与讨论结论对不上",
+        "types": [
+          "functional",
+          "cost"
+        ],
+        "confidence": "high",
+        "owner_roles": [
+          "A2",
+          "A1"
+        ]
+      },
+      {
+        "problem_id": "PRB-003",
+        "summary": "是否需要权限隔离说不清",
+        "types": [
+          "risk"
+        ],
+        "confidence": "low",
+        "owner_roles": [
+          "A4"
+        ]
+      }
+    ],
+    "idea_ref": "idea_card:IDEA-001"
+  },
+  "extensions": {}
+}

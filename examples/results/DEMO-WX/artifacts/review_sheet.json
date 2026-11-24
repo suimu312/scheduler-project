@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO-WX",
+    "stage": "P5",
+    "produced_by": "conflict_review",
+    "created_at": "2026-11-24T10:08:06+08:00"
+  },
+  "data": {
+    "challenges": [],
+    "scores": [
+      {
+        "dimension": "completeness",
+        "scorer": "A2",
+        "score": 88,
+        "reason": "核心场景可走通"
+      },
+      {
+        "dimension": "feasibility",
+        "scorer": "A3",
+        "score": 86,
+        "reason": "技术可实现"
+      },
+      {
+        "dimension": "risk",
+        "scorer": "A4",
+        "score": 84,
+        "reason": "存在可控风险"
+      },
+      {
+        "dimension": "testability",
+        "scorer": "A5",
+        "score": 85,
+        "reason": "可写 Given-When-Then"
+      },
+      {
+        "dimension": "cost",
+        "scorer": "A1",
+        "score": 80,
+        "reason": "仅估算不计分"
+      }
+    ],
+    "weighted_total": 85.83,
+    "stddev": null,
+    "veto": false,
+    "blocker_count": 0,
+    "reviewer_absent": [
+      "A1"
+    ],
+    "recuse_reason": "author_must_not_review_own_work"
+  },
+  "extensions": {}
+}

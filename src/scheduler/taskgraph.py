@@ -329,22 +329,121 @@ def _topo_order(g: dict[str, Any]) -> list[str]:
     return order if len(order) == len(ids) else ids
 
 
-def resource_conflicts(tasks: list[dict[str, Any]], waves: list[list[str]]) -> list[dict[str, Any]]:
-    """第 5 步：同一波次里同一个负责人接了多张卡 → 资源冲突（给提示，不阻塞排期）。"""
-    role_of = {}
+def resource_conflicts(
+    tasks: list[dict[str, Any]],
+    waves: list[list[str]],
+    leveled: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """第 5 步：同一波次里同一个负责人接了多张卡 → 资源冲突。
+
+    冲突条目除「谁和谁撞了」之外，还必须写清顺延口径（W5 验收）：
+    delayed_task 顺延哪张卡、blocked_by 被谁挡住、reason 为什么顺延、
+    original_start_day / delayed_start_day / shift_days 顺延前后的开工日与天数。
+    leveled 为 None 时只做识别，不产出顺延字段（兼容旧调用）。
+    """
+    role_of: dict[str, str] = {}
+    days_of: dict[str, float] = {}
     for task in tasks:
         tid = _s(task.get("task_id") or task.get("id"))
         if tid:
             role_of[tid] = _s(task.get("owner_role")) or "unassigned"
+            days_of[tid] = _num(task.get("estimate_days")) or 0.0
     out: list[dict[str, Any]] = []
     for i, wave in enumerate(waves, start=1):
         by_role: dict[str, list[str]] = {}
         for tid in wave:
             by_role.setdefault(role_of.get(tid, "unassigned"), []).append(tid)
         for role, tids in by_role.items():
-            if len(tids) > 1:
-                out.append({"wave": i, "owner_role": role, "tasks": tids, "count": len(tids)})
+            if len(tids) <= 1:
+                continue
+            entry: dict[str, Any] = {"wave": i, "owner_role": role, "tasks": tids, "count": len(tids)}
+            if leveled:
+                delayed = tids[-1]
+                blocker = tids[0]
+                lv = leveled.get(delayed) or {}
+                entry.update(
+                    {
+                        "delayed_task": delayed,
+                        "blocked_by": blocker,
+                        "reason": f"同一负责人 {role} 在第 {i} 波并行承担 {len(tids)} 张卡，按串行顺延 {delayed}",
+                        "original_start_day": round(float(lv.get("original_start") or 0.0) + 1, 2),
+                        "delayed_start_day": round(float(lv.get("start") or 0.0) + 1, 2),
+                        "shift_days": round(float(lv.get("shift") or 0.0), 2),
+                    }
+                )
+            out.append(entry)
     return out
+
+
+def _level_resources(
+    tasks: list[dict[str, Any]],
+    cp: dict[str, Any],
+    level: dict[str, int],
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    """资源 leveling：同一负责人的卡串行排，撞车的顺延到前一张收工之后。
+
+    返回 leveled（tid → {start, end, original_start, shift}）与冲突条目清单。
+    只挪开工/收工日，不改拓扑波次与关键路径判定。
+    """
+    role_of: dict[str, str] = {}
+    days_of: dict[str, float] = {}
+    es = cp.get("es") or {}
+    for task in tasks:
+        tid = _s(task.get("task_id") or task.get("id"))
+        if tid:
+            role_of[tid] = _s(task.get("owner_role")) or "unassigned"
+            days_of[tid] = _num(task.get("estimate_days")) or 0.0
+
+    leveled: dict[str, dict[str, Any]] = {}
+    by_role: dict[str, list[str]] = {}
+    for tid in sorted(es.keys(), key=lambda t: (float(es.get(t, 0.0)), t)):
+        role = role_of.get(tid, "unassigned")
+        start = float(es.get(tid, 0.0))
+        for prev in by_role.get(role, []):
+            prev_end = float(leveled[prev]["end"])
+            if start < prev_end:
+                start = prev_end
+        end = start + days_of.get(tid, 0.0)
+        leveled[tid] = {
+            "start": round(start, 2),
+            "end": round(end, 2),
+            "original_start": round(float(es.get(tid, 0.0)), 2),
+            "shift": round(start - float(es.get(tid, 0.0)), 2),
+        }
+        by_role.setdefault(role, []).append(tid)
+
+    # 按波次聚合冲突条目（与 resource_conflicts 同口径）
+    waves: list[list[str]] = []
+    for tid in leveled:
+        idx = int(level.get(tid, 1)) - 1
+        while len(waves) <= idx:
+            waves.append([])
+        waves[idx].append(tid)
+    conflicts: list[dict[str, Any]] = []
+    for i, wave in enumerate(waves, start=1):
+        grouped: dict[str, list[str]] = {}
+        for tid in wave:
+            grouped.setdefault(role_of.get(tid, "unassigned"), []).append(tid)
+        for role, tids in grouped.items():
+            if len(tids) <= 1:
+                continue
+            delayed = tids[-1]
+            lv = leveled[delayed]
+            conflicts.append(
+                {
+                    "wave": i,
+                    "owner_role": role,
+                    "tasks": tids,
+                    "count": len(tids),
+                    "delayed_task": delayed,
+                    "blocked_by": tids[0],
+                    "reason": f"同一负责人 {role} 在第 {i} 波并行承担 {len(tids)} 张卡，按串行顺延 {delayed}",
+                    "original_start_day": round(lv["original_start"] + 1, 2),
+                    "delayed_start_day": round(lv["start"] + 1, 2),
+                    "shift_days": lv["shift"],
+                }
+            )
+    return leveled, conflicts
 
 
 def build_schedule(
@@ -388,7 +487,7 @@ def build_schedule(
 
     waves, level = topological_waves(tasks)
     cp = critical_path(tasks)
-    conflicts = resource_conflicts(tasks, waves)
+    leveled, conflicts = _level_resources(tasks, cp, level)
     width = max([len(w) for w in waves] or [0])
     if width > int(max_wave_width):
         warnings.append(
@@ -400,36 +499,35 @@ def build_schedule(
             }
         )
 
-    day_of = cp["es"]
     tasks_out: list[dict[str, Any]] = []
     for task in tasks:
         tid = _s(task.get("task_id") or task.get("id"))
         days = _num(task.get("estimate_days")) or 0.0
-        start = float(day_of.get(tid, 0.0))
-        tasks_out.append(
-            {
-                **task,
-                "task_id": tid,
-                "wave": int(level.get(tid, 0)),
-                "start_day": round(start + 1, 2),      # 第几天开工（1 起）
-                "end_day": round(start + days, 2),     # 第几天收工
-                "slack": cp["slack"].get(tid, 0.0),
-                "critical": tid in cp["critical_tasks"],
-            }
-        )
+        lv = leveled.get(tid, {"start": 0.0, "end": days, "original_start": 0.0, "shift": 0.0})
+        start = float(lv["start"])
+        end = float(lv["end"])
+        card: dict[str, Any] = {
+            **task,
+            "task_id": tid,
+            "wave": int(level.get(tid, 0)),
+            "start_day": round(start + 1, 2),      # 第几天开工（1 起）
+            "end_day": round(end, 2),                # 第几天收工
+            "slack": cp["slack"].get(tid, 0.0),
+            "critical": tid in cp["critical_tasks"],
+        }
+        if float(lv["shift"]) > 0:
+            card["original_start_day"] = round(float(lv["original_start"]) + 1, 2)
+            card["shift_days"] = lv["shift"]
+        tasks_out.append(card)
 
     waves_out = [
         {
             "wave": i,
             "task_ids": w,
             "width": len(w),
-            "start_day": round(min((day_of.get(t, 0.0) for t in w), default=0.0) + 1, 2),
+            "start_day": round(min((float(leveled.get(t, {}).get("start", 0.0)) for t in w), default=0.0) + 1, 2),
             "end_day": round(
-                max(
-                    (float(day_of.get(t, 0.0)) + (_num(next((x.get("estimate_days") for x in tasks if _s(x.get("task_id") or x.get("id")) == t), 0)) or 0.0)
-                     for t in w),
-                    default=0.0,
-                ),
+                max((float(leveled.get(t, {}).get("end", 0.0)) for t in w), default=0.0),
                 2,
             ),
         }
@@ -437,6 +535,8 @@ def build_schedule(
     ]
 
     person_days = round(sum(_num(t.get("estimate_days")) or 0.0 for t in tasks), 2)
+    leveled_total = round(max((float(lv["end"]) for lv in leveled.values()), default=0.0), 2)
+    total_days = max(cp["total_days"], leveled_total)
     base.update(
         {
             "tasks": tasks_out,
@@ -446,7 +546,7 @@ def build_schedule(
             "slack": cp["slack"],
             "resource_conflicts": conflicts,
             "max_wave_width_actual": width,
-            "total_days": cp["total_days"],
+            "total_days": total_days,
             "summary": {"tasks": len(tasks), "waves": len(waves), "person_days": person_days},
         }
     )

@@ -46,6 +46,9 @@ class RunStore:
     def events_path(self, run_id: str) -> Path:
         return self.run_dir(run_id) / "events.jsonl"
 
+    def spans_path(self, run_id: str) -> Path:
+        return self.run_dir(run_id) / "spans.jsonl"
+
     def config_path(self, run_id: str) -> Path:
         return self.run_dir(run_id) / "config.json"
 
@@ -107,6 +110,18 @@ class RunStore:
 
     def read_events(self, run_id: str) -> list[dict[str, Any]]:
         path = self.events_path(run_id)
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def append_span(self, span: dict[str, Any]) -> None:
+        path = self.spans_path(span["run_id"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(span, ensure_ascii=False) + "\n")
+
+    def read_spans(self, run_id: str) -> list[dict[str, Any]]:
+        path = self.spans_path(run_id)
         if not path.exists():
             return []
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]

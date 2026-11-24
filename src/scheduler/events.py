@@ -37,6 +37,7 @@ class EventEmitter:
         payload_ref: str = "",
         budget_used: int | None = None,
         event_id: str | None = None,
+        detail: dict[str, Any] | None = None,
     ) -> RunEvent:
         eid = event_id or next_event_id(self._last_id)
         if eid in self._seen:
@@ -50,6 +51,7 @@ class EventEmitter:
             actor=actor,
             payload_ref=payload_ref,
             budget_used=self._budget_hint if budget_used is None else int(budget_used),
+            detail=dict(detail or {}),
         )
         self.store.append_event(event)
         self._last_id = eid
