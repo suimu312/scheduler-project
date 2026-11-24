@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO-WX",
+    "stage": "P2",
+    "produced_by": "agents",
+    "created_at": "2026-11-24T10:08:06+08:00"
+  },
+  "data": {
+    "by_problem": {
+      "PRB-001": {
+        "on_stage": [
+          "A2"
+        ],
+        "reason": "mandatory:functional"
+      },
+      "PRB-002": {
+        "on_stage": [
+          "A2",
+          "A1"
+        ],
+        "reason": "mandatory:functional+cost"
+      },
+      "PRB-003": {
+        "on_stage": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6"
+        ],
+        "reason": "low_confidence_all_hands"
+      }
+    },
+    "on_stage": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6"
+    ]
+  },
+  "extensions": {}
+}
