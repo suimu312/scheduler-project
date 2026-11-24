@@ -36,8 +36,8 @@ def load_artifacts(artifact_dir: str | Path) -> dict[str, Any]:
 
     读整个目录里的 `*.json`，不只读固定几个名字——七视图只消费其中三份，
     但阶段产物抽屉要把每个阶段的落盘产物都列出来供下载，漏读就等于抽屉是空的。
-    同时兼容旧命名：读到 coverage_matrix / requirement_spec 时补一份旧别名，
-    免得早期视图按老名字取不到。
+    旧名（task_coverage / design_spec）不在这里造别名：抽屉按文件名列举产物，
+    补别名会让页面上多出两份仓库里并不存在的产物，数字就对不上 examples/results 了。
     """
     directory = Path(artifact_dir)
     bundle: dict[str, Any] = {}
@@ -54,10 +54,6 @@ def load_artifacts(artifact_dir: str | Path) -> dict[str, Any]:
             bundle[name] = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise ValueError(f"{path} 不是合法 JSON：{exc}") from exc
-    if "coverage_matrix" in bundle:
-        bundle.setdefault("task_coverage", bundle["coverage_matrix"])
-    if "requirement_spec" in bundle:
-        bundle.setdefault("design_spec", bundle["requirement_spec"])
     return bundle
 
 
