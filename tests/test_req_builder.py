@@ -301,8 +301,133 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn("<link", html)
         self.assertIn("data-seq", html)
 
+    def test_critical_path_dict_shape_from_scheduler(self):
+        """A 的 schedule.json 里 critical_path 是 {"task_ids": [...], "total_days": n}。
+
+        之前 V5 直接把它当列表遍历，页面上画出了 "task_ids → total_days"。
+        这里锁住：字典形状必须被认成任务号序列，且不得出现键名。
+        """
+        artifacts = self._artifacts()
+        schedule = dict(artifacts["schedule"]["data"])
+        schedule["critical_path"] = {"task_ids": ["DEV-001", "DEV-002", "DEV-004"],
+                                     "total_days": 7.0}
+        schedule["total_days"] = 7.0
+        artifacts["schedule"] = make_artifact(schedule, "R0001", "P7")
+        html = render_views(self._events(), artifacts=artifacts)
+
+        self.assertIn("DEV-001 → DEV-002 → DEV-004", html)
+        self.assertNotIn("task_ids →", html)
+        self.assertNotIn("→ total_days", html)
+
+    def test_critical_path_list_shape_still_works(self):
+        """E 自己的 demo 用的是纯列表，两种形状都要认。"""
+        artifacts = self._artifacts()
+        schedule = dict(artifacts["schedule"]["data"])
+        schedule["critical_path"] = ["DEV-006", "DEV-002"]
+        artifacts["schedule"] = make_artifact(schedule, "R0001", "P7")
+        html = render_views(self._events(), artifacts=artifacts)
+        self.assertIn("DEV-006 → DEV-002", html)
+
+    def test_header_shows_model_calls_and_rule_checks(self):
+        """W7 顶栏：必须同时给出「N 次模型调用 / M 次规则判定」，且口径可解释。"""
+        html = render_views(self._events(), artifacts=self._artifacts())
+        self.assertIn("次模型调用", html)
+        self.assertIn("次规则判定", html)
+        self.assertIn("闸门不计费", html)
+        self.assertIn("规则判定=gate.evaluated 条数", html)
+
+    def test_stage_drawer_lists_all_stages(self):
+        """W7 产物抽屉：每个阶段节点都要有一个可点开的入口。"""
+        html = render_views(self._events(), artifacts=self._artifacts())
+        self.assertIn('id="stage-drawer"', html)
+        for stage_id in ("P1", "P2", "P3", "P4", "P5", "P6", "P7"):
+            self.assertIn(f'data-stage="{stage_id}"', html)
+        self.assertIn("var STAGE_DATA =", html)
+
+    def test_stage_drawer_carries_stage_outputs_for_download(self):
+        """抽屉里要能拿到该阶段落盘的产物，否则点开是空的。"""
+        html = render_views(self._events(), artifacts=self._artifacts())
+        marker = html.split("var STAGE_DATA =", 1)[1]
+        # dev_task_list / task_coverage 是 P6 产物，必须出现在抽屉数据里
+        self.assertIn('"dev_task_list"', marker)
+        self.assertIn('"task_coverage"', marker)
+        self.assertIn('"schedule"', marker)
+        self.assertIn('"inputs"', marker)
+        self.assertIn('"outputs"', marker)
+        self.assertIn('"gates"', marker)
+
+
+class HydrateTest(unittest.TestCase):
+    """跨模块联调：A 的事件只给 payload_ref，渲染前必须解引用成 payload。"""
+
+    def test_payload_ref_is_resolved_into_payload(self):
+        from req_builder.contracts import RunEvent
+        from req_builder.viz.hydrate import hydrate_events
+
+        events = [
+            RunEvent(event_type="agent.statement", seq=1, run_id="R1", stage="P3", actor="A2",
+                     payload_ref="discussion_minutes:ST-001"),
+            RunEvent(event_type="agent.statement", seq=2, run_id="R1", stage="P3", actor="A3",
+                     payload={"quote": "内联的保持原样"}),
+        ]
+        artifacts = {
+            "discussion_minutes": {
+                "data": {"statements": [{"statement_id": "ST-001", "agent_id": "A2", "quote": "按项目归档能搜到"}]}
+            }
+        }
+        hydrate_events(events, artifacts)
+        self.assertEqual(events[0].payload.get("quote"), "按项目归档能搜到")
+        self.assertEqual(events[1].payload.get("quote"), "内联的保持原样")
+
+    def test_gate_verdict_inferred_from_next_stage(self):
+        from req_builder.contracts import RunEvent
+        from req_builder.viz.hydrate import infer_gate_verdicts
+
+        events = [
+            RunEvent(event_type="gate.evaluated", seq=1, run_id="R1", stage="P1",
+                     payload_ref="G_P1_P2"),
+            RunEvent(event_type="stage.enter", seq=2, run_id="R1", stage="P2"),
+        ]
+        infer_gate_verdicts(events)
+        self.assertEqual(events[0].payload.get("action"), "advance")
+
+    def test_v6_reads_coverage_matrix_alias(self):
+        """A 早期落的是 coverage_matrix，data 形状与 task_coverage 一致。"""
+        from req_builder.viz.views import v6_coverage
+
+        artifacts = {
+            "coverage_matrix": {
+                "data": {
+                    "rows": [{"source_type": "feature", "source_id": "FEA-001",
+                              "status": "covered", "covered_by": ["REQ-001"]}],
+                    "columns": ["REQ-001"],
+                    "gap_count": 0,
+                    "coverage_rate": 1.0,
+                }
+            }
+        }
+        coverage = v6_coverage._coverage_of(artifacts)
+        self.assertEqual(coverage["columns"], ["REQ-001"])
+        self.assertEqual(coverage["gap_count"], 0)
+
 
 class CliTest(unittest.TestCase):
+    def test_load_artifacts_reads_whole_directory(self):
+        """抽屉要列出每个阶段的产物，所以不能只认 5 个固定文件名。"""
+        import json as _json
+
+        from req_builder.viz.cli import load_artifacts
+
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "artifacts"
+            directory.mkdir(parents=True)
+            for name in ("idea_card", "discussion_minutes", "dev_task_list"):
+                (directory / f"{name}.json").write_text(
+                    _json.dumps({"meta": {"stage": "P6"}, "data": {"k": name}}), encoding="utf-8"
+                )
+            bundle = load_artifacts(directory)
+            self.assertEqual(sorted(bundle), ["dev_task_list", "discussion_minutes", "idea_card"])
+
     def test_viz_cli_writes_html(self):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "R0001"
@@ -319,6 +444,23 @@ class CliTest(unittest.TestCase):
             out = run_dir / "viz" / "index.html"
             self.assertTrue(out.exists())
             self.assertIn("EVT-00030", out.read_text(encoding="utf-8"))
+
+
+class DiscussionFallbackTest(unittest.TestCase):
+    def test_v2_falls_back_to_discussion_artifact(self):
+        """A 的运行 P3 只落 1 条 agent.statement，讨论内容要从产物补齐。"""
+        from req_builder.viz.cli import load_artifacts
+        from req_builder.viz.views import v2_discussion
+
+        root = Path(__file__).resolve().parents[1] / "examples" / "results" / "DEMO-WX"
+        events = load_events(root / "events.jsonl")
+        bundle = load_artifacts(root / "artifacts")
+        markup, height = v2_discussion.render(ReplayWindow.of(events), bundle)
+        self.assertEqual(markup.count("条<"), 3)
+        self.assertIn("4 条", markup)   # statements
+        self.assertIn("2 条", markup)   # votes
+        self.assertIn("discussion_minutes.json", markup)
+        self.assertGreater(height, 40)
 
 
 if __name__ == "__main__":

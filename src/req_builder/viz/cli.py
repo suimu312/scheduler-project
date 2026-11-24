@@ -32,24 +32,28 @@ ARTIFACT_NAMES = (
 
 
 def load_artifacts(artifact_dir: str | Path) -> dict[str, Any]:
-    """一次把渲染要用的产物读进内存：{artifact_name: 信封对象}。
+    """把渲染要用的产物读进内存：{artifact_name: 信封对象}。
 
-    兼容旧命名：task_coverage / design_spec 这两个名字引擎从来没产出过，
-    读到对应新名字时顺手补一份别名，免得老视图取不到。
+    读整个目录里的 `*.json`，不只读固定几个名字——七视图只消费其中三份，
+    但阶段产物抽屉要把每个阶段的落盘产物都列出来供下载，漏读就等于抽屉是空的。
+    旧名（task_coverage / design_spec）不在这里造别名：抽屉按文件名列举产物，
+    补别名会让页面上多出两份仓库里并不存在的产物，数字就对不上 examples/results 了。
     """
     directory = Path(artifact_dir)
     bundle: dict[str, Any] = {}
     if not directory.exists():
         return bundle
-    for name in ARTIFACT_NAMES:
-        path = directory / f"{name}.json"
-        if path.exists():
-            try:
-                bundle[name] = json.loads(path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"{path} 不是合法 JSON：{exc}") from exc
-    if "coverage_matrix" in bundle:
-        bundle.setdefault("task_coverage", bundle["coverage_matrix"])
+    # 固定名字先读，保证它们一定在；其余按文件名顺序补齐
+    candidates = [directory / f"{name}.json" for name in ARTIFACT_NAMES]
+    candidates += [p for p in sorted(directory.glob("*.json")) if p not in candidates]
+    for path in candidates:
+        if not path.exists():
+            continue
+        name = path.stem
+        try:
+            bundle[name] = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path} 不是合法 JSON：{exc}") from exc
     return bundle
 
 
