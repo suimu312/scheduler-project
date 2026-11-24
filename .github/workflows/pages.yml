@@ -1,0 +1,33 @@
+name: Deploy demo page
+
+# 目的：把 docs/index.html（七视图演示页）发布成可以点开的链接，
+# 让评审不必 clone 仓库、不必装 Python 就能看到页面。
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
