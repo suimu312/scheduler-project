@@ -223,7 +223,10 @@ class Challenge:
     consequence: str = ""
     severity: str = "major"
     category: str = "solution"
-    verdict: str = "accepted"
+    # 照设计文档 §3.1：四要素齐全「受理」后是 PENDING（待议），
+    # 再由 P5 的意见处理表判成 ACCEPTED / REJECTED（见 opinions.py）。
+    # 别在这里写 accepted —— 受理不等于采纳。
+    verdict: str = "PENDING"
 
     @classmethod
     def from_any(cls, raw: dict[str, Any] | "Challenge", seq: int = 1) -> "Challenge":
@@ -238,7 +241,7 @@ class Challenge:
             consequence=_s(raw.get("consequence") or raw.get("impact_text")),
             severity=severity if severity in SEVERITIES else "major",
             category=canon_category(raw.get("category") or raw.get("target_kind")),
-            verdict=_s(raw.get("verdict") or "accepted").lower(),
+            verdict=_s(raw.get("verdict") or "PENDING"),
         )
 
     def to_dict(self) -> dict[str, Any]:

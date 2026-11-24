@@ -606,7 +606,8 @@ def challenges_from_findings(finding: dict[str, Any]) -> list[dict[str, Any]]:
             "consequence": consequence,
             "category": category,
             "severity": severity,
-            "verdict": "accepted",
+            # 受理后是待议，最终采纳/不采纳由 P5 的意见处理表按产物判（opinions.py）
+            "verdict": "PENDING",
         })
 
     for item in finding.get("veto_items") or []:

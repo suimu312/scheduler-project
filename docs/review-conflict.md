@@ -107,6 +107,31 @@
 | `target` 指向"整体方案" | 丢弃，要求定位到具体条目 |
 | 同一 `target` 同一问题重复 | 合并，保留 `severity` 高的那条 |
 
+#### 3.1.1 三态怎么定（实现：`opinions.py`，产物字段 `review_sheet.opinion_handling`）
+
+受理之后的三态不是拍的，按 P5 手上**读得到的产物**判，一条一个依据：
+
+| `target` 前缀 | 看什么产物 | ACCEPTED（采纳） | REJECTED（不采纳） | PENDING（待议） |
+|---|---|---|---|---|
+| `FEA-xxx` | `solution_comparison.rows[FEA].adopted` | 有候选方案但无一被采纳 | 已采纳某方案（与意见不符） | 方案对比里查不到该功能项 |
+| `CFL-xxx` | `conflict_register.conflicts[CFL].status` | `open`，意见成立 | `resolved`，已处理 | `suspended`，等 L3 裁决 |
+| `DEV-` / `TASK-` | P5 阶段尚未产出任务卡 | — | — | 一律待议 |
+
+**理由纪律**：每条处置必须带 `reason`，且理由里得有**具体 id 或数字**（例如
+`FEA-001 有 3 个候选方案但没有任何一个被采纳`）。只写"整体有问题""建议优化"不算理由，
+`validate_opinions` 会把它拦下来并打 `opinion_uncheckable` 信号。这条和质疑四要素是同一个道理：
+不可核对的理由等于没写。
+
+**字段说明**：`opinion_handling[]` 的前八个字段（`id` / `author` / `target` / `problem` /
+`impact` / `if_unfixed` / `severity` / `verdict`）严格照 §2.1，枚举也不改名；
+`reason` / `evidence` / `action` / `handled_by` 是本模块追加的扩展字段，排在标准八列之后。
+
+> 现状提醒：`P7` 的 `opinion_handling.json` 仍是空表，原因不在本模块——mock 模式下 P5 走的是
+> `src/scheduler/mocks.py` 的桩（它自己重写一份 `review_sheet`，不含 `opinion_handling`）。
+> 真链路（`provider != mock`）会带上；要让离线快照也有，需要 A 在桩里调一次 `build_opinions`，
+> 或 F 在 P7 从 `review_sheet.opinion_handling` 搬运。
+
+
 ### 3.2 门禁 G4 判定
 
 ```
@@ -255,6 +280,7 @@ pass = weighted >= 80
 | `contracts.py` | 信封适配层：复刻 `StageContext` / `StageResult` / `RunEvent` / `GuardSignal`，并提供产物 meta 壳 `make_artifact`（字段与 A 的 `validate_artifact` 逐字对齐） |
 | `models.py` | 数据结构 `Stance` / `Conflict` / `Challenge` / `ScoreSheet`，以及字段归一（`claim`↔`proposal`、`source_refs`↔`evidence_refs`、`FOR`↔`for`） |
 | `rules.py` | 纯函数：`canon_scores` / `weighted_total` / `stddev` / `gate` / `validate_challenge` / `triage_challenges` / `find_veto_items` / `detect_conflicts` / `adjudicate` / `route_rework` / `review`；以及评审依据一组 `review_scope` / `oversize_items_from_rows` / `score_from_artifacts` / `challenges_from_findings` |
+| `opinions.py` | 意见处理表：`build_opinions` 把每条意见按产物判成 `ACCEPTED` / `REJECTED` / `PENDING`，`validate_opinions` 拦空话理由，`summarize` 出三态统计；受理门按 §3.1 丢弃缺后果或指不到条目的意见 |
 | `stage.py` | 统一入口 `run(ctx)`：`stage == P3` 走冲突扫描与裁决，`stage == P5` 走「取分三级优先 → 四要素校验 → 打分 → 回炉分流」 |
 | `sample_input.json` | 一份联调样例：B 真实格式的 9 条立场陈述（覆盖 L1/L2/L3 三种裁决）+ 打分 + 任务清单（含三种否决项） |
 | `demo.py` | 读样例 + 最近一次真实 P4 产物，P5 演两遍：真实链路（分从产物算）与拿到任务卡之后（否决项生效） |
