@@ -452,6 +452,7 @@ V5 是本次修订新增的硬要求：依赖图解决"看得懂结构"，甘特
 | A-14 | 任务依赖成环 | 排期中止，报 `E_DEP_CYCLE` 并列出环 |
 | A-15 | 波次与并行度 | 波次分层正确，同波并行数不超上限，超出者顺延 |
 | A-16 | 关键路径 | 关键路径长度等于总工期，路径上任务不被挪动 |
+| A-17 | 模型注入口 | `set_provider` 后调用即生效；模块 `ctx.ask` 的调用数自动计入本阶段预算 |
 
 ## 附录B 代码实现对照（A 的 `src/scheduler/`）
 
@@ -467,5 +468,6 @@ V5 是本次修订新增的硬要求：依赖图解决"看得懂结构"，甘特
 | 并行度上限（文档默认 3） | `RunConfig.limits.max_wave_width` 默认 4；超限记 `E_WAVE_TOO_WIDE` 告警，排期照常出，不拦截 |
 | `viz` 导出依赖图 + 甘特 | `cli viz --html` → `taskgraph.render_html()` 输出自包含 HTML（SVG 依赖图 + 甘特条 + 任务明细） |
 | 设计规格作为 P1 输入 | `start --design-spec <json/yaml/md>`；`idea_card` 记 `design_spec` 与 `input_mode` |
+| 模型注入口（换模型不改流程） | `llm_gateway.set_provider()` / `register_provider()` / `adapt_model()`；`ctx.llm` + `ctx.ask()`；`--llm-provider offline\|agents`；真实调用按 `max(自报, 实测)` 进账 |
 
-自检：`python -m src.scheduler.selfcheck`，16 条用例全绿（含 A-14/A-15/A-16）。
+自检：`python -m src.scheduler.selfcheck`，17 条用例全绿（含 A-14/A-15/A-16/A-17 注入口）。

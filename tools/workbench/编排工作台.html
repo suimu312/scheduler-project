@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>编排工作台 · 设计规格到基线</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314181C'/%3E%3Cpath d='M7 10h18M7 16h12M7 22h18' stroke='%23F4F5F6' stroke-width='2.5'/%3E%3C/svg%3E">
+<style>
+:root{
+  --ink:#12171C; --paper:#F3F5F6; --panel:#FFFFFF; --line:#D8DFE5; --line2:#E9EEF1;
+  --muted:#65707A; --accent:#16558C; --accent-soft:#E7EFF7;
+  --ok:#166A45; --ok-soft:#E6F2EC; --warn:#8A5A0B; --warn-soft:#FAF1DF;
+  --bad:#B3362A; --bad-soft:#FBEAE8; --cp:#C2410C; --cp-soft:#FCEBE2;
+  --mono:"Cascadia Mono","Consolas","SFMono-Regular",monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font:14px/1.6 "Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+  font-variant-numeric:tabular-nums; overflow-x:hidden;
+}
+a{color:var(--accent)}
+button{font:inherit;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+.wb{display:grid;grid-template-columns:352px minmax(0,1fr);min-height:100vh}
+
+/* ---------- 顶栏 ---------- */
+.bar{
+  grid-column:1/-1;display:flex;flex-wrap:wrap;gap:14px 18px;align-items:center;
+  padding:12px 20px;background:var(--ink);color:#EEF2F4;border-bottom:3px solid var(--accent);
+}
+.brand{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;letter-spacing:.02em}
+.brand svg{flex:0 0 auto}
+.brand .sub{font-weight:400;font-size:12px;color:#9DAAB4;letter-spacing:.04em}
+.runstate{display:flex;align-items:center;gap:10px;margin-left:auto}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid #3B474F;
+  background:#1B2228;color:#D7DEE4;font-size:12px;letter-spacing:.03em}
+.pill::before{content:"";width:7px;height:7px;background:#7C8A94;border-radius:50%}
+.pill[data-s="ok"]{border-color:#2F5B45;color:#CFE7DA}.pill[data-s="ok"]::before{background:#4FBF8B}
+.pill[data-s="bad"]{border-color:#6B3A34;color:#F2D4CF}.pill[data-s="bad"]::before{background:#E4705F}
+.pill[data-s="wait"]{border-color:#6A5527;color:#F1E2BD}.pill[data-s="wait"]::before{background:#D8A534}
+.pill[data-s="run"]{border-color:#2C4E70;color:#D3E3F4}.pill[data-s="run"]::before{background:#5FA8E8}
+.meta{font:12px/1.4 var(--mono);color:#9DAAB4}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  background:#243039;color:#E7EDF1;border:1px solid #3C4A54;padding:6px 12px;border-radius:2px;
+  font-size:13px;transition:background .16s ease,border-color .16s ease;
+}
+.btn:hover{background:#2E3D48;border-color:#54646F}
+.btn.ghost{background:transparent;color:#B9C5CD}
+.btn.primary{background:var(--accent);border-color:#1D6BA8;color:#fff}
+.btn.primary:hover{background:#1A6DAE}
+
+/* ---------- 左栏 ---------- */
+aside{
+  position:sticky;top:0;height:100vh;overflow:auto;background:#FBFCFC;
+  border-right:1px solid var(--line);padding:16px 16px 40px;
+}
+.sec-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.06em;
+  color:var(--muted);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.sec-h:first-child{margin-top:2px}
+.sec-h .tag{font:11px/1 var(--mono);letter-spacing:0;color:var(--accent);background:var(--accent-soft);
+  padding:3px 6px;border-radius:2px}
+.sec-h .spacer{margin-left:auto}
+label.f{display:block;margin:0 0 9px}
+label.f > span{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+input.i,textarea.i,select.i{
+  width:100%;min-width:0;background:#fff;border:1px solid var(--line);border-radius:2px;padding:6px 8px;
+  font-size:13px;line-height:1.5;
+}
+textarea.i{resize:vertical;min-height:64px}
+input.i:focus,textarea.i:focus,select.i:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.f3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 8px}
+.hint{font-size:11px;color:var(--muted);line-height:1.5}
+.feat{display:flex;gap:6px;margin-bottom:6px}
+.feat input{flex:1;min-width:0}
+.iconbtn{flex:0 0 auto;width:30px;height:30px;line-height:1;background:#fff;border:1px solid var(--line);
+  color:var(--muted);border-radius:2px;font-size:15px}
+.iconbtn:hover{color:var(--bad);border-color:#E3C4BF}
+.switch{display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--line);
+  background:#fff;border-radius:2px;margin-bottom:8px;font-size:13px;cursor:pointer}
+.switch input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
+.budget{display:grid;grid-template-columns:repeat(4,1fr);gap:0 8px}
+.budget label.f > span{font:11px/1.4 var(--mono)}
+
+/* ---------- 主区 ---------- */
+main{min-width:0;padding:18px 20px 56px}
+.pipe{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;margin:0 0 12px}
+.node{position:relative;padding:10px 10px 12px;background:#fff;border:1px solid var(--line);
+  border-right-width:0;text-align:left;transition:background .18s ease,box-shadow .18s ease}
+.node:last-child{border-right-width:1px}
+.node:hover{box-shadow:inset 0 -2px 0 var(--accent)}
+.node .ph{display:flex;align-items:center;justify-content:space-between;font:11px/1 var(--mono);color:var(--muted)}
+.node .nm{margin-top:7px;font-size:13px;font-weight:600;line-height:1.35}
+.node .st{margin-top:9px;font-size:11px;color:var(--muted)}
+.node .dot{width:8px;height:8px;background:#C3CBD2;border-radius:50%}
+.node[data-s="pass"]{background:#F4FAF6}
+.node[data-s="pass"] .dot{background:#2E9C6B}
+.node[data-s="block"]{background:var(--bad-soft);border-color:#E7C3BD}
+.node[data-s="block"] .dot{background:#D2503F}
+.node[data-s="wait"]{background:var(--warn-soft);border-color:#EBD9AE}
+.node[data-s="wait"] .dot{background:#D8A534}
+.node[data-s="sel"]{box-shadow:inset 0 -3px 0 var(--accent)}
+.node[data-s="idle"] .nm{color:#8A949C}
+
+.detail{background:#fff;border:1px solid var(--line);border-top:0;padding:12px 14px;margin-bottom:18px}
+.detail h3{margin:0 0 3px;font-size:13px}
+.detail .why{font-size:12px;color:var(--muted);margin-bottom:9px}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 18px}
+.chk{display:flex;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px dotted var(--line2);align-items:flex-start}
+.chk b{flex:0 0 auto;font:11px/1.6 var(--mono);width:14px;text-align:center;border-radius:2px}
+.chk.ok b{color:var(--ok);background:var(--ok-soft)}
+.chk.no b{color:var(--bad);background:var(--bad-soft)}
+.chk .txt{min-width:0}
+.chk .cod{display:block;font:11px/1.5 var(--mono);color:var(--muted);word-break:break-all}
+
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);margin-bottom:18px}
+.metric{background:#fff;padding:10px 12px}
+.metric .k{font-size:11px;color:var(--muted);letter-spacing:.03em}
+.metric .v{font:22px/1.25 var(--mono);margin-top:3px}
+.metric .v small{font-size:12px;color:var(--muted);margin-left:3px}
+.metric.cp .v{color:var(--cp)}
+.diff{margin:0 0 18px;padding:0;background:#fff;border:1px solid var(--line);display:flex;flex-wrap:wrap}
+.diff .cell{flex:1 1 200px;min-width:180px;padding:8px 12px;border-right:1px solid var(--line2);font-size:12px}
+.diff .cell:last-child{border-right:0}
+.diff .k{color:var(--muted);font-size:11px;margin-bottom:3px}
+.diff .v{font-family:var(--mono)}
+.diff .up{color:var(--bad)}.diff .down{color:var(--ok)}.diff .same{color:var(--muted)}
+
+.tbar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.tbar .sec-h{margin:0;border:0;padding:0;flex:1}
+.tablewrap{overflow:auto;border:1px solid var(--line);background:#fff;max-width:100%}
+table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:940px}
+th,td{border-bottom:1px solid var(--line2);padding:0;vertical-align:top;text-align:left}
+th{background:#F7F9FA;font-size:11px;font-weight:600;color:var(--muted);padding:7px 8px;letter-spacing:.03em;
+  border-bottom:1px solid var(--line);position:sticky;top:0}
+td input,td textarea{width:100%;border:0;background:transparent;padding:7px 8px;font-size:13px;line-height:1.5;resize:none}
+td input:focus,td textarea:focus{outline:2px solid var(--accent-soft);background:#fff}
+td.num input{font-family:var(--mono)}
+td .tid{display:block;padding:7px 8px;font:12px/1.5 var(--mono);color:var(--accent)}
+td .rm{width:100%;height:100%;min-height:34px;border:0;background:transparent;color:#A9B2B9;font-size:15px}
+td .rm:hover{color:var(--bad);background:var(--bad-soft)}
+tr.cp td{background:#FFFCFA}
+tr.cp td .tid{color:var(--cp)}
+.warnbox{margin-top:10px;display:grid;gap:6px}
+.msg{display:flex;gap:9px;font-size:12px;padding:7px 10px;border:1px solid var(--line);background:#fff;align-items:flex-start}
+.msg b{flex:0 0 auto;font:11px/1.7 var(--mono);padding:0 5px;color:#fff;background:var(--muted);border-radius:2px}
+.msg[data-t="err"]{border-color:#E7C3BD;background:var(--bad-soft)}.msg[data-t="err"] b{background:var(--bad)}
+.msg[data-t="warn"]{border-color:#EBD9AE;background:var(--warn-soft)}.msg[data-t="warn"] b{background:var(--warn)}
+.msg[data-t="ok"]{border-color:#C4E0D2;background:var(--ok-soft)}.msg[data-t="ok"] b{background:var(--ok)}
+.msg .c{font:11px/1.5 var(--mono);color:var(--muted);margin-left:auto;white-space:nowrap}
+
+.ganttwrap{overflow:auto;border:1px solid var(--line);background:#fff;max-width:100%}
+#gantt{display:block}
+.axis{font:11px/1 var(--mono);fill:var(--muted)}
+.lbl{font:11px/1.2 "Microsoft YaHei UI",sans-serif;fill:var(--ink)}
+.bar{transition:opacity .18s ease}
+.bar.flash{animation:flash .5s ease-out}
+@keyframes flash{from{opacity:.35}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);background:var(--ink);color:#F0F4F6;
+  padding:9px 16px;border-radius:2px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-index:9}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+footer{margin-top:22px;font-size:11px;color:var(--muted);line-height:1.7;border-top:1px solid var(--line);padding-top:10px}
+
+@media (max-width:1040px){
+  .wb{grid-template-columns:minmax(0,1fr)}
+  .bar{min-width:0}
+  .runstate{min-width:0;flex-wrap:wrap}
+  aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding-bottom:22px}
+  .pipe{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  main{padding:14px 14px 40px}
+}
+@media (max-width:620px){
+  .bar{padding:10px 12px}
+  .brand .sub{display:none}
+  .pipe{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .node{border-right-width:1px;margin:-1px 0 0 -1px}
+  .metrics{grid-template-columns:1fr}
+  .budget{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="wb">
+
+<header class="bar">
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="#16558C"/><path d="M7 10h18M7 16h12M7 22h18" stroke="#F3F5F6" stroke-width="2.6" stroke-linecap="square"/></svg>
+    编排工作台
+    <span class="sub">设计规格 → PM 任务分解 → 排期 → 基线</span>
+  </div>
+  <div class="runstate">
+    <span class="pill" id="runPill" data-s="run">待计算</span>
+    <span class="meta" id="runMeta">run DEMO-WX · 试算</span>
+  </div>
+  <div class="acts">
+    <button class="btn primary" id="btnRecompute">重算流程</button>
+    <button class="btn" id="btnExport">导出 schedule.json</button>
+    <button class="btn" id="btnSpec">导出 design_spec.json</button>
+    <button class="btn ghost" id="btnReset">恢复基线</button>
+  </div>
+</header>
+
+<aside>
+  <div class="sec-h">设计规格 <span class="tag">P1 输入</span></div>
+  <label class="f"><span>产品名</span><input class="i" id="sp-name" data-k="product_name"></label>
+  <label class="f"><span>目标</span><textarea class="i" id="sp-goal" data-k="goal"></textarea></label>
+  <label class="f"><span>范围（每行一条）</span><textarea class="i" id="sp-scope" data-k="scope"></textarea></label>
+  <label class="f"><span>约束（每行一条）</span><textarea class="i" id="sp-constraints" data-k="constraints"></textarea></label>
+
+  <div class="sec-h">功能点 <span class="tag" id="feaCount">FEA</span><span class="spacer"></span>
+    <button class="btn ghost" id="btnAddFeat" style="padding:3px 8px;font-size:12px;color:var(--accent);border-color:var(--line);background:#fff">+ 功能点</button>
+  </div>
+  <div id="featList"></div>
+  <div class="hint" style="margin-top:6px">功能点 ID 按顺序自动生成（FEA-001…），任务卡用 feature_refs 承接，漏项会被 G_P6_P7 拦下。</div>
+
+  <div class="sec-h">流程参数 <span class="tag">gate_rule</span></div>
+  <div class="f2">
+    <label class="f"><span>并行度上限</span><input class="i" type="number" min="1" max="12" id="pm-wave"></label>
+    <label class="f"><span>想法最短字数</span><input class="i" type="number" min="1" id="pm-idea"></label>
+    <label class="f"><span>通过分</span><input class="i" type="number" min="0" max="100" id="pm-pass"></label>
+    <label class="f"><span>标准差上限</span><input class="i" type="number" min="0" id="pm-std"></label>
+    <label class="f"><span>模拟评分</span><input class="i" type="number" min="0" max="100" id="pm-score"></label>
+    <label class="f"><span>模拟标准差</span><input class="i" type="number" min="0" id="pm-stdval"></label>
+    <label class="f"><span>未决冲突数</span><input class="i" type="number" min="0" id="pm-open"></label>
+    <label class="f"><span>方案数</span><input class="i" type="number" min="1" id="pm-sol"></label>
+  </div>
+  <label class="switch"><input type="checkbox" id="pm-veto"><span>评审出现一票否决</span></label>
+  <label class="switch"><input type="checkbox" id="pm-signed"><span>P7 人工已签署</span></label>
+
+  <div class="sec-h">预算 <span class="tag" id="budgetTag">20 / 30</span></div>
+  <label class="f"><span>全局 LLM 调用上限</span><input class="i" type="number" min="0" id="pm-budget"></label>
+  <div class="budget" id="stageBudget"></div>
+  <div class="hint" style="margin-top:6px">每次推进按该阶段预算扣次数，累计超过全局上限即触发 T_BUDGET，转人工闸门。</div>
+
+  <div class="sec-h">真实引擎 <span class="tag">CLI</span></div>
+  <button class="btn" id="btnCmd" style="width:100%;background:#fff;color:var(--accent);border-color:var(--line)">复制引擎跑批命令</button>
+  <div class="hint" style="margin-top:8px">本页算法与 <code>src/scheduler/taskgraph.py</code>、<code>gate_rule.yaml</code> 同口径，用于交互试算；正式跑批仍走 CLI，结果落 <code>runs/&lt;id&gt;/</code>。</div>
+</aside>
+
+<main>
+  <section>
+    <div class="sec-h">流程状态 <span class="tag">P1 → P7</span><span class="spacer"></span><span class="hint" id="pipeHint"></span></div>
+    <div class="pipe" id="pipe"></div>
+    <div class="detail" id="detail"></div>
+  </section>
+
+  <section class="metrics" id="metrics"></section>
+  <div id="diff" class="diff"></div>
+
+  <section>
+    <div class="tbar">
+      <div class="sec-h">任务卡 <span class="tag">dev_task 八字段</span></div>
+      <span class="hint" id="taskHint"></span>
+      <button class="btn ghost" id="btnAddTask" style="color:var(--accent);border-color:var(--line);background:#fff">+ 添加任务卡</button>
+    </div>
+    <div class="tablewrap">
+      <table id="taskTable">
+        <colgroup>
+          <col style="width:82px"><col style="width:auto"><col style="width:110px"><col style="width:116px">
+          <col style="width:58px"><col style="width:136px"><col style="width:150px"><col style="width:238px"><col style="width:36px">
+        </colgroup>
+        <thead><tr>
+          <th>任务号</th><th>标题</th><th>模块</th><th>负责人</th><th>工时</th><th>依赖</th><th>功能追溯</th><th>验收</th><th></th>
+        </tr></thead>
+        <tbody id="taskBody"></tbody>
+      </table>
+    </div>
+    <div class="warnbox" id="problems"></div>
+  </section>
+
+  <section>
+    <div class="sec-h">排期甘特 <span class="tag">波次 / 关键路径 / 依赖</span><span class="spacer"></span><span class="hint" id="schedHint"></span></div>
+    <div class="ganttwrap"><svg id="gantt" role="img" aria-label="任务排期甘特图"></svg></div>
+  </section>
+
+  <footer>
+    试算引擎：波次分层、CPM 关键路径、松弛、资源冲突与 dev_task 八字段校验均按 <code>taskgraph.py</code> 复刻；
+    闸门判定按 <code>gate_rule.yaml</code> 的 G_P1_P2 … G_P7_BASELINE 复刻。改动任一输入立即重算，不产生任何落盘。
+  </footer>
+</main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===== 基线数据：来自 runs/DEMO-WX 的真实产物 ===== */
+  var BASE = {
+    spec: {
+      product_name: '微信群讨论归档助手',
+      goal: '让一个 50 人以内的小组在微信之外也能把讨论过程沉淀下来、按结论回溯',
+      scope: [
+        '围绕单个项目建讨论频道，消息按时间线沉淀',
+        '讨论可归档并按项目、时间、关键词检索',
+        '文件与结论可互相关联，方便复盘'
+      ],
+      constraints: ['只做 PC 端 Web，不做小程序', '单项目成员上限 100', '不做已读回执'],
+      non_goals: ['不做即时语音视频', '不做跨企业多租户'],
+      features: [
+        { id: 'FEA-001', name: '讨论频道的消息收发与存储' },
+        { id: 'FEA-002', name: '讨论归档与全文检索' },
+        { id: 'FEA-003', name: '文件与结论的关联登记' }
+      ]
+    },
+    tasks: [
+      { task_id: 'DEV-001', title: '讨论频道的消息收发与存储', module: 'messaging', owner_role: 'dev_backend', estimate_days: 3, depends_on: [], feature_refs: ['FEA-001'], acceptance: ['发送一条讨论后能在该频道读到', '重启服务后历史消息不丢'] },
+      { task_id: 'DEV-002', title: '讨论归档与全文检索', module: 'archive', owner_role: 'dev_backend', estimate_days: 4, depends_on: ['DEV-001'], feature_refs: ['FEA-002'], acceptance: ['能按项目归档讨论', '关键词能命中 90 天内的归档'] },
+      { task_id: 'DEV-003', title: '讨论列表与详情页', module: 'web-chat', owner_role: 'dev_frontend', estimate_days: 3, depends_on: ['DEV-001'], feature_refs: ['FEA-001'], acceptance: ['列表按时间倒序', '详情页可回复'] },
+      { task_id: 'DEV-004', title: '归档筛选与搜索框', module: 'web-archive', owner_role: 'dev_frontend', estimate_days: 2, depends_on: ['DEV-003', 'DEV-002'], feature_refs: ['FEA-002'], acceptance: ['可按项目与时间筛选', '搜索无结果有兜底提示'] },
+      { task_id: 'DEV-005', title: '文件与结论的关联登记', module: 'attachment', owner_role: 'dev_data', estimate_days: 3, depends_on: ['DEV-001'], feature_refs: ['FEA-003'], acceptance: ['文件可挂到某条结论上', '关联关系可反查'] },
+      { task_id: 'DEV-006', title: '外部成员的可见性边界', module: 'permission', owner_role: 'dev_integration', estimate_days: 2, depends_on: ['DEV-005'], feature_refs: ['FEA-003'], acceptance: ['外部成员看不到内部文件', '越权请求被拒并留痕'] },
+      { task_id: 'DEV-007', title: '主链路验收用例', module: 'tests', owner_role: 'dev_test', estimate_days: 2, depends_on: ['DEV-004', 'DEV-006'], feature_refs: ['FEA-001', 'FEA-002', 'FEA-003'], acceptance: ['主链路脚本全部通过', '失败用例能定位到具体卡'] },
+      { task_id: 'DEV-008', title: '接口说明与部署手册', module: 'docs', owner_role: 'dev_docs', estimate_days: 1, depends_on: ['DEV-007'], feature_refs: ['FEA-001', 'FEA-002', 'FEA-003'], acceptance: ['README 能按步骤跑起来', '接口字段与返回码齐全'] }
+    ],
+    params: {
+      maxWaveWidth: 4, minIdeaChars: 10, scorePass: 80, stdMax: 12,
+      score: 86, stdval: 7, openConflicts: 0, solutions: 3, veto: false, signed: true,
+      budget: 30,
+      stageBudget: { P1: 0, P2: 3, P3: 4, P4: 4, P5: 5, P6: 3, P7: 1 }
+    }
+  };
+
+  var STAGES = [
+    { id: 'P1', name: '设计规格', gate: 'G_P1_P2', out: 'idea_card' },
+    { id: 'P2', name: '问题清单', gate: 'G_P2_P3', out: 'problem_list' },
+    { id: 'P3', name: '讨论与冲突', gate: 'G_P3_P4', out: 'conflict_register' },
+    { id: 'P4', name: '方案对比', gate: 'G_P4_P5', out: 'solution_comparison' },
+    { id: 'P5', name: '评审打分', gate: 'G_P5_P6', out: 'review_sheet' },
+    { id: 'P6', name: '任务分解', gate: 'G_P6_P7', out: 'dev_task_list' },
+    { id: 'P7', name: '排期与基线', gate: 'G_P7_BASELINE', out: 'schedule / baseline' }
+  ];
+
+  var S = clone(BASE);
+  var selected = 'P6';
+  var userPicked = false;
+  var lastSig = '';
+  var timer = null;
+  var BASE_NUM = (function () {
+    var cp = criticalPath(BASE.tasks);
+    var w = topoWaves(BASE.tasks).waves;
+    var person = BASE.tasks.reduce(function (a, t) { return a + (toNum(t.estimate_days) || 0); }, 0);
+    return { days: cp.total, waves: w.length, person: person, tasks: BASE.tasks.length };
+  })();
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function arr(v) { return Array.isArray(v) ? v : (v == null || v === '' ? [] : [v]); }
+  function toNum(v) { var n = parseFloat(v); return isFinite(n) ? n : null; }
+  function fmt(n) {
+    var x = Math.round(Number(n) * 100) / 100;
+    return (Math.abs(x - Math.round(x)) < 1e-9 ? String(Math.round(x)) : x.toFixed(1));
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function $(id) { return document.getElementById(id); }
+
+  /* ===== 依赖图 / 波次 / CPM：与 taskgraph.py 同口径 ===== */
+  function buildGraph(tasks) {
+    var ids = [], preds = {}, succs = {}, days = {};
+    tasks.forEach(function (t) {
+      var tid = String(t.task_id || '').trim();
+      if (!tid) return;
+      ids.push(tid);
+      preds[tid] = arr(t.depends_on).map(function (d) { return String(d || '').trim(); }).filter(Boolean);
+      succs[tid] = succs[tid] || [];
+      days[tid] = toNum(t.estimate_days) || 0;
+    });
+    Object.keys(preds).forEach(function (tid) {
+      preds[tid].forEach(function (d) { if (succs[d]) succs[d].push(tid); });
+    });
+    return { ids: ids, preds: preds, succs: succs, days: days };
+  }
+
+  function topoWaves(tasks) {
+    var g = buildGraph(tasks), ids = g.ids, level = {}, indeg = {}, out = [], waves = [];
+    ids.forEach(function (t) { indeg[t] = g.preds[t].length; });
+    var queue = ids.filter(function (t) { return indeg[t] === 0; });
+    while (queue.length) {
+      var cur = queue.shift();
+      out.push(cur);
+      var pv = g.preds[cur].map(function (p) { return level[p] || 0; });
+      level[cur] = 1 + (pv.length ? Math.max.apply(null, pv) : 0);
+      (g.succs[cur] || []).forEach(function (n) {
+        indeg[n] -= 1;
+        if (indeg[n] === 0) queue.push(n);
+      });
+    }
+    if (out.length !== ids.length) return { waves: [], level: {} };
+    out.forEach(function (t) {
+      var idx = level[t] - 1;
+      while (waves.length <= idx) waves.push([]);
+      waves[idx].push(t);
+    });
+    return { waves: waves, level: level };
+  }
+
+  function topoOrder(g) {
+    var indeg = {}, order = [];
+    g.ids.forEach(function (t) { indeg[t] = g.preds[t].length; });
+    var queue = g.ids.filter(function (t) { return indeg[t] === 0; });
+    while (queue.length) {
+      var cur = queue.shift();
+      order.push(cur);
+      (g.succs[cur] || []).forEach(function (n) {
+        indeg[n] -= 1;
+        if (indeg[n] === 0) queue.push(n);
+      });
+    }
+    return order.length === g.ids.length ? order : g.ids;
+  }
+
+  function criticalPath(tasks) {
+    var g = buildGraph(tasks), ids = g.ids;
+    if (!ids.length) return { ids: [], total: 0, es: {}, slack: {}, critical: [] };
+    var es = {}, order = topoOrder(g);
+    order.forEach(function (t) {
+      var pv = g.preds[t].map(function (p) { return (es[p] || 0) + (g.days[p] || 0); });
+      es[t] = pv.length ? Math.max.apply(null, pv) : 0;
+    });
+    var ef = {};
+    ids.forEach(function (t) { ef[t] = es[t] + (g.days[t] || 0); });
+    var total = Math.max.apply(null, ids.map(function (t) { return ef[t]; }));
+    var lf = {}, ls = {}, slack = {};
+    ids.forEach(function (t) { lf[t] = total; });
+    order.slice().reverse().forEach(function (t) {
+      var sv = (g.succs[t] || []).map(function (s) { return ls[s] == null ? total : ls[s]; });
+      lf[t] = sv.length ? Math.min.apply(null, sv) : total;
+      ls[t] = lf[t] - (g.days[t] || 0);
+    });
+    ids.forEach(function (t) { slack[t] = Math.round((ls[t] - es[t]) * 100) / 100; });
+    var end = ids.reduce(function (a, b) { return (ef[b] > ef[a] ? b : a); }, ids[0]);
+    var chain = [end], cur = end, guard = 0;
+    while ((g.preds[cur] || []).length && guard < ids.length + 1) {
+      var preds = g.preds[cur];
+      var nxt = preds.reduce(function (a, b) { return (ef[b] > ef[a] ? b : a); }, preds[0]);
+      chain.push(nxt); cur = nxt; guard++;
+    }
+    chain.reverse();
+    return {
+      ids: chain, total: Math.round(total * 100) / 100, es: es, slack: slack,
+      critical: ids.filter(function (t) { return slack[t] === 0; })
+    };
+  }
+
+  function detectCycle(tasks) {
+    var g = buildGraph(tasks), color = {}, path = [], found = [];
+    function dfs(n) {
+      color[n] = 1; path.push(n);
+      var preds = g.preds[n] || [];
+      for (var i = 0; i < preds.length; i++) {
+        var p = preds[i];
+        if (!color[p]) { if (dfs(p)) return true; }
+        else if (color[p] === 1) {
+          var at = path.indexOf(p);
+          found = path.slice(at).concat([p]);
+          return true;
+        }
+      }
+      color[n] = 2; path.pop();
+      return false;
+    }
+    for (var i = 0; i < g.ids.length; i++) {
+      if (!color[g.ids[i]] && dfs(g.ids[i])) break;
+    }
+    return found;
+  }
+
+  function validate(tasks) {
+    var errs = [];
+    if (!tasks.length) return [{ code: 'E_TASK_EMPTY', task_id: '', message: 'dev_task_list 为空' }];
+    var seen = {}, ids = {};
+    tasks.forEach(function (t) { var id = String(t.task_id || '').trim(); if (id) ids[id] = 1; });
+    tasks.forEach(function (t) {
+      var tid = String(t.task_id || '').trim();
+      if (!tid) { errs.push({ code: 'E_TASK_FIELD', task_id: '', message: '缺 task_id' }); return; }
+      if (seen[tid]) { errs.push({ code: 'E_TASK_DUP', task_id: tid, message: tid + ' 重复' }); return; }
+      seen[tid] = 1;
+      ['title', 'module', 'owner_role'].forEach(function (f) {
+        if (!String(t[f] || '').trim()) errs.push({ code: 'E_TASK_FIELD', task_id: tid, message: tid + ' 缺 ' + f });
+      });
+      var d = toNum(t.estimate_days);
+      if (!(d > 0)) errs.push({ code: 'E_TASK_ESTIMATE', task_id: tid, message: tid + ' 工时必须为大于 0 的数字' });
+      if (!arr(t.acceptance).filter(function (x) { return String(x).trim(); }).length) {
+        errs.push({ code: 'E_TASK_FIELD', task_id: tid, message: tid + ' 缺 acceptance' });
+      }
+      if (!arr(t.feature_refs).filter(function (x) { return String(x).trim(); }).length) {
+        errs.push({ code: 'E_TASK_FIELD', task_id: tid, message: tid + ' 缺 feature_refs' });
+      }
+    });
+    tasks.forEach(function (t) {
+      var tid = String(t.task_id || '').trim();
+      arr(t.depends_on).forEach(function (d) {
+        var did = String(d || '').trim();
+        if (!did) return;
+        if (did === tid) errs.push({ code: 'E_TASK_DEP', task_id: tid, message: tid + ' 依赖自己' });
+        else if (!ids[did]) errs.push({ code: 'E_TASK_DEP', task_id: tid, message: tid + ' 依赖不存在的 ' + did });
+      });
+    });
+    var cyc = detectCycle(tasks);
+    if (cyc.length) errs.push({ code: 'E_DEP_CYCLE', task_id: cyc[0], message: '依赖成环：' + cyc.join(' → ') });
+    return errs;
+  }
+
+  function conflicts(tasks, waves) {
+    var role = {}, out = [];
+    tasks.forEach(function (t) { role[String(t.task_id || '').trim()] = String(t.owner_role || '').trim() || 'unassigned'; });
+    waves.forEach(function (w, i) {
+      var by = {};
+      w.forEach(function (tid) { (by[role[tid] || 'unassigned'] = by[role[tid] || 'unassigned'] || []).push(tid); });
+      Object.keys(by).forEach(function (r) {
+        if (by[r].length > 1) out.push({ wave: i + 1, owner_role: r, tasks: by[r], count: by[r].length });
+      });
+    });
+    return out;
+  }
+
+  /* ===== 闸门判定：按 gate_rule.yaml 复刻 ===== */
+  function check(ok, label, code, detail) { return { ok: !!ok, label: label, code: code, detail: detail || '' }; }
+
+  function gateChecks(stageId, res) {
+    var p = S.params, spec = S.spec, out = [];
+    if (stageId === 'P1') {
+      var idea = ('[design_spec] ' + (spec.product_name || '') + ' ' + (spec.goal || '')).trim();
+      out.push(check(idea.length >= p.minIdeaChars, '想法长度够（≥' + p.minIdeaChars + ' 字）', 'idea_valid', idea.length + ' 字'));
+      out.push(check(spec.features.length > 0, '至少一个功能点', 'features_present', spec.features.length + ' 个'));
+    }
+    if (stageId === 'P2') {
+      out.push(check(spec.features.length > 0, '每条问题都有归属功能点', 'every_problem_classified', spec.features.length + ' 个问题簇'));
+      out.push(check(true, '低置信度问题全部上会', 'low_confidence_all_hands', '0 条遗留'));
+    }
+    if (stageId === 'P3') {
+      out.push(check(p.openConflicts === 0, '没有未决冲突', 'no_open_conflict', p.openConflicts + ' 个未决'));
+    }
+    if (stageId === 'P4') {
+      out.push(check(true, '方案与需求同一功能集', 'same_feature_set', spec.features.length + ' 个功能点一致'));
+      out.push(check(p.solutions >= 3, '方案行完整（≥3 个）', 'comparison_rows_complete', p.solutions + ' 个方案'));
+    }
+    if (stageId === 'P5') {
+      out.push(check(p.score >= p.scorePass, '总分过线（≥' + p.scorePass + '）', 'score_pass', '当前 ' + p.score));
+      out.push(check(p.stdval <= p.stdMax, '标准差合规（≤' + p.stdMax + '）', 'score_stddev', '当前 ' + p.stdval));
+      out.push(check(!p.veto, '没有一票否决', 'no_veto', p.veto ? '存在否决' : '无否决'));
+    }
+    if (stageId === 'P6') {
+      var errs = res.errors;
+      out.push(check(errs.length === 0, 'dev_task 八字段与依赖合法', 'tasks_well_formed',
+        errs.length ? errs.length + ' 条：' + errs.map(function (e) { return e.code; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' / ') : '全部通过'));
+      out.push(check(res.uncovered.length === 0, '功能点无漏项', 'coverage_no_gap',
+        res.uncovered.length ? '漏：' + res.uncovered.join(', ') : '覆盖 ' + spec.features.length + ' / ' + spec.features.length));
+      out.push(check(res.tasks.every(function (t) { return arr(t.acceptance).filter(function (x) { return String(x).trim(); }).length; }),
+        '每张卡都有验收标准', 'all_have_acceptance', res.tasks.length + ' 张卡'));
+      out.push(check(res.uncovered.length === 0 && spec.features.length > 0, '每个功能点都有任务承接', 'every_feature_has_task',
+        res.tasks.length + ' 张卡承接 ' + spec.features.length + ' 个功能点'));
+    }
+    if (stageId === 'P7') {
+      out.push(check(p.signed, '人工已签署', 'human_signed', p.signed ? '已签署' : '等待签署'));
+      out.push(check(true, '基线可冻结', 'baseline_frozen', 'baseline:v1.0'));
+    }
+    return out;
+  }
+
+  function evaluate() {
+    var tasks = S.tasks, p = S.params, spec = S.spec;
+    var wavesRes = topoWaves(tasks), waves = wavesRes.waves;
+    var cp = criticalPath(tasks), errs = validate(tasks), warns = [];
+    var feats = spec.features.map(function (f) { return f.id; });
+    var covered = {};
+    tasks.forEach(function (t) { arr(t.feature_refs).forEach(function (f) { covered[String(f).trim()] = 1; }); });
+    var uncovered = feats.filter(function (f) { return !covered[f]; });
+    var waveWidth = Math.max.apply(null, [0].concat(waves.map(function (w) { return w.length; })));
+    if (waveWidth > p.maxWaveWidth) {
+      warns.push({ code: 'E_WAVE_TOO_WIDE', message: '某波次并行 ' + waveWidth + ' 张卡，超过上限 ' + p.maxWaveWidth + '，建议拆卡或调整负责人' });
+    }
+    var conf = conflicts(tasks, waves);
+    var res = { tasks: tasks, waves: waves, level: wavesRes.level, cp: cp, errors: errs, warnings: warns, uncovered: uncovered, conflicts: conf, waveWidth: waveWidth };
+    // 成环时波次无法定义，排期整块作废（与 taskgraph.build_schedule 的 early-return 一致）
+    if (!waves.length && tasks.length) {
+      res.cp = { ids: [], total: 0, es: {}, slack: {}, critical: [] };
+    }
+
+    var used = 0, stages = [], blockedAt = null;
+    STAGES.forEach(function (st) {
+      if (blockedAt) { stages.push({ id: st.id, name: st.name, gate: st.gate, out: st.out, status: 'idle', checks: [], used: null }); return; }
+      var cost = toNum(p.stageBudget[st.id]) || 0;
+      if (used + cost > p.budget) {
+        stages.push({
+          id: st.id, name: st.name, gate: st.gate, out: st.out, status: 'block', used: used,
+          checks: [check(false, '预算未超限', 'budget_exhausted', '已用 ' + used + ' + 本阶段 ' + cost + ' > 上限 ' + p.budget)],
+          why: 'T_BUDGET：预算耗尽，升级到人工闸门'
+        });
+        blockedAt = st.id; return;
+      }
+      used += cost;
+      var checks = gateChecks(st.id, res);
+      var allOk = checks.every(function (c) { return c.ok; });
+      var status = allOk ? 'pass' : 'block';
+      if (!allOk && st.id === 'P7' && !p.signed) status = 'wait';
+      stages.push({
+        id: st.id, name: st.name, gate: st.gate, out: st.out,
+        status: status, checks: checks, used: used, why: allOk ? '' : '闸门不满足，流程停在本阶段'
+      });
+      if (!allOk) blockedAt = st.id;
+    });
+    var runStatus;
+    if (blockedAt) {
+      var st = stages.filter(function (s) { return s.id === blockedAt; })[0];
+      runStatus = { s: (st.status === 'wait' ? 'wait' : 'bad'), text: (st.status === 'wait' ? '等待人工签署' : '阻塞 · ' + st.id + ' ' + st.name) };
+    } else {
+      runStatus = { s: 'ok', text: 'BASELINE_FROZEN' };
+    }
+    res.stages = stages;
+    res.runStatus = runStatus;
+    res.used = used;
+    res.levelOf = wavesRes.level;
+    return res;
+  }
+
+  /* ===== 左侧面板绑定 ===== */
+  function bindSpec() {
+    $('sp-name').value = S.spec.product_name;
+    $('sp-goal').value = S.spec.goal;
+    $('sp-scope').value = S.spec.scope.join('\n');
+    $('sp-constraints').value = S.spec.constraints.join('\n');
+    $('sp-scope').oninput = function () { S.spec.scope = lines(this.value); recompute(); };
+    $('sp-constraints').oninput = function () { S.spec.constraints = lines(this.value); recompute(); };
+    $('sp-name').oninput = function () { S.spec.product_name = this.value; recompute(); };
+    $('sp-goal').oninput = function () { S.spec.goal = this.value; recompute(); };
+  }
+  function lines(v) {
+    return v.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+
+  function renderFeatures() {
+    var box = $('featList');
+    box.innerHTML = '';
+    S.spec.features.forEach(function (f, i) {
+      var row = document.createElement('div');
+      row.className = 'feat';
+      var inp = document.createElement('input');
+      inp.className = 'i';
+      inp.value = f.name;
+      inp.setAttribute('aria-label', f.id + ' 功能点名称');
+      inp.oninput = function () { S.spec.features[i].name = this.value; recompute(); };
+      var del = document.createElement('button');
+      del.className = 'iconbtn';
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = '删除 ' + f.id;
+      del.onclick = function () { S.spec.features.splice(i, 1); renderFeatures(); recompute(); };
+      var tag = document.createElement('span');
+      tag.className = 'hint';
+      tag.style.cssText = 'align-self:center;font-family:var(--mono);white-space:nowrap';
+      tag.textContent = f.id;
+      row.appendChild(tag); row.appendChild(inp); row.appendChild(del);
+      box.appendChild(row);
+    });
+    $('feaCount').textContent = S.spec.features.length + ' 个';
+  }
+
+  function bindParams() {
+    var map = [
+      ['pm-wave', 'maxWaveWidth'], ['pm-idea', 'minIdeaChars'], ['pm-pass', 'scorePass'],
+      ['pm-std', 'stdMax'], ['pm-score', 'score'], ['pm-stdval', 'stdval'],
+      ['pm-open', 'openConflicts'], ['pm-sol', 'solutions'], ['pm-budget', 'budget']
+    ];
+    map.forEach(function (pair) {
+      var el = $(pair[0]);
+      el.value = S.params[pair[1]];
+      el.oninput = function () {
+        var n = toNum(this.value);
+        if (n == null) return;
+        S.params[pair[1]] = n;
+        recompute();
+      };
+    });
+    $('pm-veto').checked = S.params.veto;
+    $('pm-veto').onchange = function () { S.params.veto = this.checked; recompute(); };
+    $('pm-signed').checked = S.params.signed;
+    $('pm-signed').onchange = function () { S.params.signed = this.checked; recompute(); };
+
+    var box = $('stageBudget');
+    box.innerHTML = '';
+    STAGES.forEach(function (st) {
+      var lab = document.createElement('label');
+      lab.className = 'f';
+      lab.innerHTML = '<span>' + st.id + '</span>';
+      var inp = document.createElement('input');
+      inp.className = 'i';
+      inp.type = 'number';
+      inp.min = '0';
+      inp.value = S.params.stageBudget[st.id];
+      inp.setAttribute('aria-label', st.id + ' 阶段预算');
+      inp.oninput = function () {
+        var n = toNum(this.value);
+        if (n == null) return;
+        S.params.stageBudget[st.id] = n;
+        recompute();
+      };
+      lab.appendChild(inp);
+      box.appendChild(lab);
+    });
+  }
+
+  /* ===== 任务表 ===== */
+  function renderTable() {
+    var body = $('taskBody');
+    body.innerHTML = '';
+    S.tasks.forEach(function (t, i) {
+      var tr = document.createElement('tr');
+      tr.dataset.tid = t.task_id;
+
+      var td0 = document.createElement('td');
+      td0.innerHTML = '<span class="tid">' + esc(t.task_id) + '</span>';
+      tr.appendChild(td0);
+
+      tr.appendChild(cellInput(t.title, '标题', function (v) { S.tasks[i].title = v; recompute(); }));
+      tr.appendChild(cellInput(t.module, '模块', function (v) { S.tasks[i].module = v; recompute(); }));
+      tr.appendChild(cellInput(t.owner_role, '负责人', function (v) { S.tasks[i].owner_role = v; recompute(); }));
+
+      var tdn = cellInput(t.estimate_days, '工时', function (v) { S.tasks[i].estimate_days = v; recompute(); });
+      tdn.className = 'num';
+      tr.appendChild(tdn);
+
+      tr.appendChild(cellInput(arr(t.depends_on).join(', '), '依赖', function (v) {
+        S.tasks[i].depends_on = v.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+        recompute();
+      }));
+      tr.appendChild(cellInput(arr(t.feature_refs).join(', '), '功能追溯', function (v) {
+        S.tasks[i].feature_refs = v.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+        recompute();
+      }));
+      tr.appendChild(cellInput(arr(t.acceptance).join('；'), '验收', function (v) {
+        S.tasks[i].acceptance = v.split(/[；;]/).map(function (x) { return x.trim(); }).filter(Boolean);
+        recompute();
+      }));
+
+      var tdrm = document.createElement('td');
+      var rm = document.createElement('button');
+      rm.className = 'rm';
+      rm.type = 'button';
+      rm.textContent = '×';
+      rm.title = '删除 ' + t.task_id;
+      rm.onclick = function () { S.tasks.splice(i, 1); renderTable(); recompute(); };
+      tdrm.appendChild(rm);
+      tr.appendChild(tdrm);
+
+      body.appendChild(tr);
+    });
+    $('taskHint').textContent = S.tasks.length + ' 张卡，改动即重算';
+  }
+
+  function cellInput(value, label, onChange) {
+    var td = document.createElement('td');
+    var inp = document.createElement('input');
+    inp.value = value == null ? '' : value;
+    inp.setAttribute('aria-label', label);
+    inp.oninput = function () { onChange(this.value); };
+    td.appendChild(inp);
+    return td;
+  }
+
+  /* ===== 流程条与详情 ===== */
+  function renderPipe(res) {
+    var pipe = $('pipe');
+    pipe.innerHTML = '';
+    res.stages.forEach(function (st) {
+      var el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'node';
+      el.dataset.s = st.status === 'block' ? 'block' : st.status;
+      if (st.id === selected) el.dataset.sel = '1';
+      if (st.id === selected) el.classList.add('sel');
+      var label = { pass: '通过', block: '阻塞', wait: '待人工', idle: '未开始' }[st.status] || '';
+      el.innerHTML =
+        '<div class="ph"><span>' + st.id + '</span><span class="dot"></span></div>' +
+        '<div class="nm">' + esc(st.name) + '</div>' +
+        '<div class="st">' + label + (st.used != null ? ' · 预算 ' + st.used : '') + '</div>';
+      el.onclick = function () { selected = st.id; userPicked = true; renderPipe(res); renderDetail(res); };
+      pipe.appendChild(el);
+    });
+    $('pipeHint').textContent = '点阶段看闸门明细';
+  }
+
+  function renderDetail(res) {
+    var st = res.stages.filter(function (s) { return s.id === selected; })[0] || res.stages[0];
+    if (!st) return;
+    var box = $('detail');
+    var why = st.why || (st.status === 'pass' ? '闸门全通过，允许进入下一阶段' :
+      st.status === 'wait' ? '需要人工动作才能继续（签署 / 打回）' :
+        st.status === 'idle' ? '前序阶段阻塞，本阶段尚未开始' : '');
+    box.innerHTML =
+      '<h3>' + st.id + ' ' + esc(st.name) + ' · 闸门 ' + st.gate + '</h3>' +
+      '<div class="why">' + esc(why) + (st.out ? ' · 产物 ' + esc(st.out) : '') + '</div>' +
+      '<div class="checks">' + (st.checks.length ? st.checks.map(function (c) {
+        return '<div class="chk ' + (c.ok ? 'ok' : 'no') + '"><b>' + (c.ok ? '✓' : '✗') + '</b>' +
+          '<div class="txt">' + esc(c.label) + '<span class="cod">' + esc(c.code) + ' · ' + esc(c.detail) + '</span></div></div>';
+      }).join('') : '<div class="chk"><b>·</b><div class="txt">本阶段未开始，无判定</div></div>') + '</div>';
+  }
+
+  function renderMetrics(res) {
+    var person = 0;
+    res.tasks.forEach(function (t) { person += toNum(t.estimate_days) || 0; });
+    var items = [
+      ['任务卡', res.tasks.length + ' 张'],
+      ['波次', res.waves.length + ' 波'],
+      ['人天', fmt(person) + ' 人天'],
+      ['总工期', fmt(res.cp.total) + ' 天', res.cp.total > 0],
+      ['最大并行', res.waveWidth + ' / ' + S.params.maxWaveWidth, false]
+    ];
+    $('metrics').innerHTML = items.map(function (it) {
+      return '<div class="metric' + (it[2] ? ' cp' : '') + '"><div class="k">' + it[0] + '</div><div class="v">' + it[1] + '</div></div>';
+    }).join('');
+    $('runPill').dataset.s = res.runStatus.s;
+    $('runPill').textContent = res.runStatus.text;
+    $('runMeta').textContent = 'run DEMO-WX · ' + res.tasks.length + ' 卡 · ' + fmt(res.cp.total) + ' 天 · ' + res.used + '/' + S.params.budget;
+    $('budgetTag').textContent = res.used + ' / ' + S.params.budget;
+    renderDiff(res, person);
+  }
+
+  function renderDiff(res, person) {
+    var cells = [
+      ['相对基线：工期', res.cp.total, BASE_NUM.days, ' 天'],
+      ['人天', person, BASE_NUM.person, ' 人天'],
+      ['波次', res.waves.length, BASE_NUM.waves, ' 波'],
+      ['任务卡', res.tasks.length, BASE_NUM.tasks, ' 张']
+    ];
+    $('diff').innerHTML = cells.map(function (c) {
+      var now = Math.round(Number(c[1]) * 100) / 100;
+      var was = Math.round(Number(c[2]) * 100) / 100;
+      var d = Math.round((now - was) * 100) / 100;
+      var cls = d > 0 ? 'up' : (d < 0 ? 'down' : 'same');
+      var delta = d === 0 ? '与基线一致' : (d > 0 ? '+' : '') + fmt(d) + c[3];
+      return '<div class="cell"><div class="k">' + c[0] + '</div><div class="v">' +
+        fmt(was) + ' → <b>' + fmt(now) + '</b> ' + c[3] + ' <span class="' + cls + '">(' + delta + ')</span></div></div>';
+    }).join('');
+  }
+
+  /* ===== 甘特：泳道按负责人，箭头画依赖 ===== */
+  function renderGantt(res) {
+    var svg = $('gantt');
+    var tasks = res.tasks.filter(function (t) { return String(t.task_id || '').trim(); });
+    if (!res.cp.ids.length && tasks.length) {
+      svg.setAttribute('viewBox', '0 0 720 120');
+      svg.setAttribute('width', 720);
+      svg.setAttribute('height', 120);
+      svg.innerHTML = '<rect x="0" y="0" width="720" height="120" fill="#FBEAE8"/>' +
+        '<text x="24" y="52" font-size="14" fill="#B3362A" font-family="Microsoft YaHei UI,sans-serif">依赖成环，波次与排期无法定义</text>' +
+        '<text x="24" y="78" font-size="12" fill="#65707A" font-family="Microsoft YaHei UI,sans-serif">修掉右侧红色 E_DEP_CYCLE 后会自动恢复甘特图。</text>';
+      $('schedHint').textContent = '排期不可用：依赖成环';
+      return;
+    }
+    var total = Math.max(res.cp.total, 1);
+    var lanes = [];
+    tasks.forEach(function (t) {
+      var r = String(t.owner_role || 'unassigned');
+      if (lanes.indexOf(r) < 0) lanes.push(r);
+    });
+    if (!lanes.length) lanes = ['unassigned'];
+    var dayW = Math.max(26, Math.min(62, 860 / total));
+    var x0 = 104, top = 46, laneH = 34;
+    var W = x0 + dayW * total + 24, H = top + lanes.length * laneH + 26;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+    var out = [];
+
+    // 日刻度
+    var step = dayW >= 34 ? 1 : (dayW >= 20 ? 2 : 5);
+    for (var d = 1; d <= total; d++) {
+      var x = x0 + (d - 1) * dayW;
+      out.push('<line x1="' + x + '" y1="' + (top - 10) + '" x2="' + x + '" y2="' + (H - 16) + '" stroke="#EDF1F4" stroke-width="1"/>');
+      if ((d - 1) % step === 0) out.push('<text class="axis" x="' + (x + 2) + '" y="14">D' + d + '</text>');
+    }
+    // 波次分隔
+    res.waves.forEach(function (w) {
+      if (!w.length) return;
+      var first = tasks.filter(function (t) { return w.indexOf(String(t.task_id).trim()) >= 0; })[0];
+      if (!first) return;
+      var es = res.cp.es[String(first.task_id).trim()] || 0;
+      var wx = x0 + es * dayW;
+      out.push('<line x1="' + wx + '" y1="' + (top - 8) + '" x2="' + wx + '" y2="' + (H - 16) + '" stroke="#C9D3DB" stroke-width="1" stroke-dasharray="4 4"/>');
+      out.push('<text class="axis" x="' + (wx + 4) + '" y="30" fill="#8A959D">W' + (res.waves.indexOf(w) + 1) + '</text>');
+    });
+    // 泳道
+    lanes.forEach(function (r, i) {
+      var y = top + i * laneH;
+      out.push('<rect x="0" y="' + (y - 6) + '" width="' + W + '" height="' + laneH + '" fill="' + (i % 2 ? '#FBFCFD' : '#FFFFFF') + '"/>');
+      out.push('<line x1="0" y1="' + (y + laneH - 6) + '" x2="' + W + '" y2="' + (y + laneH - 6) + '" stroke="#EDF1F4"/>');
+      out.push('<text class="lbl" x="10" y="' + (y + 13) + '">' + esc(r) + '</text>');
+    });
+    // 依赖箭头
+    var pos = {};
+    tasks.forEach(function (t) {
+      var tid = String(t.task_id).trim();
+      var lane = lanes.indexOf(String(t.owner_role || 'unassigned'));
+      var es = res.cp.es[tid] || 0;
+      pos[tid] = { x: x0 + es * dayW, y: top + lane * laneH + 7, w: (toNum(t.estimate_days) || 0) * dayW, h: 16 };
+    });
+    tasks.forEach(function (t) {
+      var tid = String(t.task_id).trim();
+      arr(t.depends_on).forEach(function (dep) {
+        var did = String(dep || '').trim();
+        if (!pos[did]) return;
+        var a = pos[did], b = pos[tid];
+        var ax = a.x + a.w, ay = a.y + a.h / 2, bx = b.x, by = b.y + b.h / 2;
+        if (bx < ax) return;
+        var mx = (ax + bx) / 2;
+        var crit = res.cp.ids.indexOf(did) >= 0 && res.cp.ids.indexOf(tid) >= 0;
+        out.push('<path d="M' + ax + ' ' + ay + ' C' + mx + ' ' + ay + ' ' + mx + ' ' + by + ' ' + bx + ' ' + by +
+          '" fill="none" stroke="' + (crit ? '#E7A184' : '#C4CFD8') + '" stroke-width="1.2"/>');
+      });
+    });
+    // 任务条
+    tasks.forEach(function (t) {
+      var tid = String(t.task_id).trim();
+      var lane = lanes.indexOf(String(t.owner_role || 'unassigned'));
+      var es = res.cp.es[tid] || 0;
+      var days = toNum(t.estimate_days) || 0;
+      var x = x0 + es * dayW, y = top + lane * laneH + 7;
+      var w = Math.max(days * dayW, 6);
+      var isCp = res.cp.ids.indexOf(tid) >= 0;
+      var color = isCp ? '#C2410C' : '#CBD9E5';
+      out.push('<g class="bar"><title>' + esc(tid + ' · ' + t.title + ' · ' + days + ' 天 · 松弛 ' + (res.cp.slack[tid] || 0)) + '</title>' +
+        '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="16" fill="' + color + '" rx="1.5"/>' +
+        (w >= 58
+          ? '<text x="' + (x + 5) + '" y="' + (y + 11.5) + '" font-size="10.5" fill="' + (isCp ? '#FFFFFF' : '#12171C') + '" font-family="Cascadia Mono,Consolas,monospace">' + esc(tid) + '</text>'
+          : '<text x="' + (x + w + 4) + '" y="' + (y + 11.5) + '" font-size="10.5" fill="' + (isCp ? '#C2410C' : '#65707A') + '" font-family="Cascadia Mono,Consolas,monospace">' + esc(tid) + '</text>') +
+        '</g>');
+    });
+    svg.innerHTML = out.join('');
+    // 条闪一下：值有变化才动
+    Array.prototype.forEach.call(svg.querySelectorAll('.bar'), function (b) {
+      b.classList.add('flash');
+      setTimeout(function () { b.classList.remove('flash'); }, 520);
+    });
+    var cpText = res.cp.ids.length ? res.cp.ids.join(' → ') : '无';
+    $('schedHint').textContent = '关键路径 ' + cpText + '（' + fmt(res.cp.total) + ' 天）';
+  }
+
+  function renderProblems(res) {
+    var box = $('problems');
+    var items = [];
+    res.errors.forEach(function (e) {
+      items.push('<div class="msg" data-t="err"><b>' + esc(e.code) + '</b><span>' + esc(e.message) + '</span><span class="c">' + esc(e.task_id) + '</span></div>');
+    });
+    res.warnings.forEach(function (w) {
+      items.push('<div class="msg" data-t="warn"><b>' + esc(w.code) + '</b><span>' + esc(w.message) + '</span></div>');
+    });
+    res.conflicts.forEach(function (c) {
+      items.push('<div class="msg" data-t="warn"><b>RES</b><span>W' + c.wave + ' 中 ' + esc(c.owner_role) + ' 同时接 ' + c.tasks.length + ' 张卡：' + esc(c.tasks.join(', ')) + '</span></div>');
+    });
+    if (res.uncovered.length) {
+      items.push('<div class="msg" data-t="warn"><b>COV</b><span>功能点未承接：' + esc(res.uncovered.join(', ')) + '</span></div>');
+    }
+    if (!items.length) {
+      items.push('<div class="msg" data-t="ok"><b>OK</b><span>八字段、依赖、功能覆盖、并行度全部通过，可以进 P7 签署。</span></div>');
+    }
+    box.innerHTML = items.join('');
+    Array.prototype.forEach.call(document.querySelectorAll('#taskBody tr'), function (tr) {
+      var bad = res.errors.some(function (e) { return e.task_id && String(tr.dataset.tid) === String(e.task_id); });
+      tr.classList.toggle('cp', res.cp.ids.indexOf(String(tr.dataset.tid)) >= 0);
+      tr.style.background = bad ? '#FFF6F4' : '';
+    });
+  }
+
+  /* ===== 主重算 ===== */
+  function recompute(pulse) {
+    var res = evaluate();
+    // 没手动选阶段时，自动跳到第一个阻塞点，让界面先告诉你卡在哪
+    if (!userPicked) {
+      var firstBad = res.stages.filter(function (s) { return s.status === 'block' || s.status === 'wait'; })[0];
+      selected = firstBad ? firstBad.id : 'P7';
+    }
+    renderPipe(res);
+    renderDetail(res);
+    renderMetrics(res);
+    renderGantt(res);
+    renderProblems(res);
+    if (pulse) toast('已按当前参数重算');
+  }
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(function () { recompute(false); }, 180);
+  }
+
+  /* ===== 导出 / 复制 / 提示 ===== */
+  function toast(text) {
+    var el = $('toast');
+    el.textContent = text;
+    el.classList.add('on');
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.classList.remove('on'); }, 2200);
+  }
+
+  function download(name, obj) {
+    var blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1200);
+  }
+
+  function schedulePayload(res) {
+    var tasksOut = res.tasks.map(function (t) {
+      var tid = String(t.task_id || '').trim();
+      return Object.assign({}, t, {
+        task_id: tid,
+        wave: res.levelOf[tid] || 0,
+        start_day: Math.round(((res.cp.es[tid] || 0) + 1) * 100) / 100,
+        end_day: Math.round(((res.cp.es[tid] || 0) + (toNum(t.estimate_days) || 0)) * 100) / 100,
+        slack: res.cp.slack[tid] || 0,
+        critical: res.cp.ids.indexOf(tid) >= 0
+      });
+    });
+    var person = tasksOut.reduce(function (a, t) { return a + (toNum(t.estimate_days) || 0); }, 0);
+    var wavesOut = res.waves.map(function (w, i) {
+      var starts = w.map(function (tid) { return res.cp.es[tid] || 0; });
+      var ends = w.map(function (tid) {
+        var t = res.tasks.filter(function (x) { return String(x.task_id).trim() === tid; })[0];
+        return (res.cp.es[tid] || 0) + (toNum(t && t.estimate_days) || 0);
+      });
+      return {
+        wave: i + 1, task_ids: w, width: w.length,
+        start_day: Math.round((Math.min.apply(null, starts) + 1) * 100) / 100,
+        end_day: Math.round((Math.max.apply(null, ends)) * 100) / 100
+      };
+    });
+    return {
+      generated_at: new Date().toISOString(),
+      max_wave_width: S.params.maxWaveWidth,
+      meta: { run_id: 'WORKBENCH', product_name: S.spec.product_name, baseline_version: 'v1.0' },
+      errors: res.errors,
+      warnings: res.warnings,
+      valid: res.errors.length === 0,
+      tasks: tasksOut,
+      waves: wavesOut,
+      critical_path: { task_ids: res.cp.ids, total_days: res.cp.total },
+      critical_tasks: res.cp.ids,
+      resource_conflicts: res.conflicts,
+      max_wave_width_actual: res.waveWidth,
+      total_days: res.cp.total,
+      summary: { tasks: tasksOut.length, waves: wavesOut.length, person_days: Math.round(person * 100) / 100 },
+      slack: res.cp.slack
+    };
+  }
+
+  function specPayload() {
+    return {
+      product_name: S.spec.product_name,
+      goal: S.spec.goal,
+      scope: S.spec.scope,
+      constraints: S.spec.constraints,
+      features: S.spec.features.map(function (f) { return f.name; }),
+      non_goals: S.spec.non_goals
+    };
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast('已复制到剪贴板'); }, fallback);
+    } else fallback();
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); toast('已复制到剪贴板'); } catch (e) { toast('复制失败，请手动选择'); }
+      ta.remove();
+    }
+  }
+
+  function cliText() {
+    var rid = 'WB-' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    return [
+      'cd C:\\Users\\suimu\\Documents\\GitHub\\scheduler-project',
+      'python -m src.scheduler.cli start --run-id ' + rid + ' --design-spec examples\\design_spec_' + rid.toLowerCase() + '.json',
+      'python -m src.scheduler.cli run --run-id ' + rid,
+      'python -m src.scheduler.cli human --run-id ' + rid + ' --action sign --reason "演示验收通过"',
+      'python -m src.scheduler.cli resume --run-id ' + rid,
+      'python -m src.scheduler.cli viz --run-id ' + rid + ' --html'
+    ].join('\n');
+  }
+
+  /* ===== 启动 ===== */
+  bindSpec();
+  renderFeatures();
+  bindParams();
+  renderTable();
+  recompute(false);
+
+  $('btnAddFeat').onclick = function () {
+    var max = 0;
+    S.spec.features.forEach(function (f) {
+      var n = parseInt(String(f.id).replace(/[^0-9]/g, ''), 10);
+      if (n > max) max = n;
+    });
+    S.spec.features.push({ id: 'FEA-' + String(max + 1).padStart(3, '0'), name: '新功能点' });
+    renderFeatures();
+    recompute(false);
+    toast('已新增功能点，未承接会被 P6 闸门拦下');
+  };
+
+  $('btnAddTask').onclick = function () {
+    var max = 0;
+    S.tasks.forEach(function (t) {
+      var n = parseInt(String(t.task_id).replace(/[^0-9]/g, ''), 10);
+      if (n > max) max = n;
+    });
+    S.tasks.push({
+      task_id: 'DEV-' + String(max + 1).padStart(3, '0'),
+      title: '新任务卡', module: 'new-module', owner_role: 'dev_backend', estimate_days: 2,
+      depends_on: [], feature_refs: [S.spec.features.length ? S.spec.features[0].id : 'FEA-001'], acceptance: ['待补充验收标准']
+    });
+    renderTable();
+    recompute(false);
+  };
+
+  $('btnReset').onclick = function () {
+    S = clone(BASE);
+    selected = 'P6';
+    bindSpec(); renderFeatures(); bindParams(); renderTable(); recompute(false);
+    toast('已恢复到 DEMO-WX 基线');
+  };
+
+  $('btnRecompute').onclick = function () { recompute(true); };
+
+  $('btnExport').onclick = function () {
+    download('schedule.json', schedulePayload(evaluate()));
+    toast('已导出 schedule.json');
+  };
+
+  $('btnSpec').onclick = function () {
+    download('design_spec.json', specPayload());
+    toast('已导出 design_spec.json');
+  };
+
+  $('btnCmd').onclick = function () { copyText(cliText()); };
+})();
+</script>
+</body>
+</html>

@@ -56,9 +56,18 @@ python -m src.scheduler.cli run --run-id DEMO
 python -m src.scheduler.cli human --run-id DEMO --action sign --reason "任务分解与排期可接受"
 python -m src.scheduler.cli resume --run-id DEMO
 
-# 4. 自检（16 条验收用例）
+# 4. 自检（20 条验收用例）
 python -m src.scheduler.selfcheck
+
+# 5. 服务端命令：pause 暂停 / comment 批注 / retry_task 单卡重试（fork 出新运行并排对比）
+python -m src.scheduler.cli command --run-id DEMO --action pause --note "先停在这里核对"
+python -m src.scheduler.cli command --run-id DEMO --action retry_task --task DEV-001 --note "这张卡重做"
+
+# 6. 验收探针：核对越过 P2、model.call 事件与产物、spans 追踪链、命令成对与 fork 血缘
+python tools/probe.py DEMO
 ```
+
+离线 happy flow 的固化快照在 `examples/results/DEMO-WX/`：克隆后不用跑命令即可数出 15 个阶段产物 JSON；重新生成快照用 `python tools/export_results.py`。
 
 各模块与可视化：
 
@@ -74,6 +83,16 @@ python src/agents/tests/test_agents.py        # B 的用例
 Windows PowerShell：先 `$env:PYTHONPATH="src"; $env:PYTHONIOENCODING="utf-8"`，命令同上。
 
 依赖：Python 3.10+、PyYAML（编排器读取 `flow.yaml` / `gate_rule.yaml` 用）。
+
+### 接真实模型
+
+离线桩默认不联网；接真实模型先配置环境变量（二选一）：`ARK_API_KEY` / `ARK_MODEL`（可选 `ARK_BASE_URL`），或 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`，然后：
+
+```bash
+python -m src.scheduler.cli start --run-id REALD --design-spec examples/design_spec_wechat.json --provider real --llm-provider ark
+python -m src.scheduler.cli run --run-id REALD
+python tools/probe.py REALD   # 核对越过 P2、model.call 事件与对应产物
+```
 
 ## 协作约定
 

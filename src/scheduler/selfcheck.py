@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any, Callable
@@ -280,6 +281,179 @@ def case_schema_invalid(run_root: Path) -> dict[str, Any]:
     return _result("缺 meta 产物被拒收", ok, {"bad": errors_bad, "ok": errors_ok})
 
 
+def case_llm_injection(run_root: Path) -> dict[str, Any]:
+    """A-17 模型注入口：set_provider 即时生效；模块调 ctx.ask 自动计入本阶段账本。"""
+    from . import llm_gateway as lg
+    from . import modules as modules_mod
+
+    # 1) 直接注入：换 provider 不动调用点
+    gw = lg.LLMGateway()
+    hits: list[tuple[str, str]] = []
+
+    def fake(agent_id: str, prompt: str, stage: str) -> str:
+        hits.append((agent_id, stage))
+        return "OK"
+
+    gw.set_provider(fake, name="test")
+    out = gw.call("A2", "hi", "P3")
+    seam = out == "OK" and gw.name == "test" and hits == [("A2", "P3")] and gw.stage_calls("P3") == 1
+
+    # 2) 适配组员 B 的 HttpModel 形态（dict 进 dict 出）
+    class FakeModel:
+        def __call__(self, payload: dict[str, Any], timeout: int = 120) -> dict[str, str]:
+            return {"text": f"echo:{payload['agent_id']}:{payload['step']}"}
+
+    adapted = lg.adapt_model(FakeModel())("A4", "hi", "P4")
+
+    # 3) 运行时：模块不自报，靠 Gateway 实测进账；阶段外的调用不串账
+    rt, state, _ = _fresh("llm", run_root)
+    rt.set_provider(lambda agent_id, prompt, stage: "X", name="test")
+    rt.gateway.call("A2", "pre", "P2")
+
+    original = modules_mod.MOCK_REGISTRY["solution_gen"]
+
+    def counting_module(ctx):
+        res = original(ctx)
+        res.budget_used = 0
+        ctx.ask("A4", "方案一")
+        ctx.ask("A4", "方案二")
+        return res
+
+    modules_mod.MOCK_REGISTRY["solution_gen"] = counting_module
+    try:
+        rt.run(state, until="P5")
+    finally:
+        modules_mod.MOCK_REGISTRY["solution_gen"] = original
+
+    charged = state.ledger.used_of("P4")
+    ok = seam and adapted == "echo:A4:P4" and charged == 2
+    return _result(
+        "模型注入口可注入且自动计费",
+        ok,
+        {"seam": seam, "adapted": adapted, "p4_charged": charged, "gateway_calls": rt.gateway.calls},
+    )
+
+
+def case_resource_leveling(run_root: Path) -> dict[str, Any]:
+    """W5：同负责人同波次两张卡 → 串行顺延，冲突条目写清顺延卡/原因/顺延天数。"""
+    from . import taskgraph
+
+    tasks = [
+        {
+            "task_id": "DEV-A",
+            "title": "前端列表",
+            "module": "web",
+            "owner_role": "frontend",
+            "estimate_days": 3,
+            "depends_on": [],
+            "acceptance": ["列表可渲染"],
+            "feature_refs": ["F1"],
+        },
+        {
+            "task_id": "DEV-B",
+            "title": "前端详情",
+            "module": "web",
+            "owner_role": "frontend",
+            "estimate_days": 3,
+            "depends_on": [],
+            "acceptance": ["详情可打开"],
+            "feature_refs": ["F2"],
+        },
+    ]
+    sched = taskgraph.build_schedule(tasks, ["F1", "F2"])
+    conflicts = sched["resource_conflicts"]
+    b = next((t for t in sched["tasks"] if t["task_id"] == "DEV-B"), {})
+    ok = (
+        len(conflicts) == 1
+        and conflicts[0]["delayed_task"] == "DEV-B"
+        and conflicts[0]["blocked_by"] == "DEV-A"
+        and bool(conflicts[0]["reason"])
+        and float(conflicts[0]["shift_days"]) == 3.0
+        and float(b.get("start_day") or 0) == 4.0
+        and float(b.get("end_day") or 0) == 6.0
+        and abs(float(sched["total_days"]) - 6.0) < 1e-9
+    )
+    return _result(
+        "W5 同负责人撞车 → 串行顺延并写明原因",
+        ok,
+        {"conflicts": conflicts, "B": b, "total_days": sched["total_days"]},
+    )
+
+
+def case_spans_recorded(run_root: Path) -> dict[str, Any]:
+    """O1：一次运行写出 spans.jsonl，trace_id 对齐 run_id，stage/gate/model 三类 span 齐全。"""
+    from . import modules as modules_mod
+
+    rt, state, _ = _fresh("spans", run_root)
+    original = modules_mod.MOCK_REGISTRY["solution_gen"]
+
+    def counting_module(ctx):
+        res = original(ctx)
+        res.budget_used = 0
+        ctx.ask("A4", "方案一")
+        return res
+
+    modules_mod.MOCK_REGISTRY["solution_gen"] = counting_module
+    try:
+        rt.run(state, human_script=[{"action": "sign"}])
+    finally:
+        modules_mod.MOCK_REGISTRY["solution_gen"] = original
+
+    spans = rt.store.read_spans(state.run_id)
+    kinds = {str(sp.get("kind")) for sp in spans}
+    trace_ok = all(str(sp.get("trace_id")) == state.run_id for sp in spans)
+    ok = bool(spans) and trace_ok and {"stage", "gate", "model"} <= kinds
+    return _result(
+        "O1 spans.jsonl 追踪链完整",
+        ok,
+        {"spans": len(spans), "kinds": sorted(kinds), "trace_ok": trace_ok},
+    )
+
+
+def case_command_fork(run_root: Path) -> dict[str, Any]:
+    """O2：命令 issued/applied 成对；retry_task fork 出 .fork.1 且血缘指向父运行。"""
+    from . import commands as cmd_mod
+    from .events import EventEmitter
+
+    rt, state, cfg = _fresh("cmd", run_root)
+    store = rt.store
+    emitter = EventEmitter(store, state.run_id, state.ledger.global_used)
+
+    pause = cmd_mod.issue_command(state, "pause", note="演示暂停", by="tester")
+    emitter.emit("command.issued", stage=state.phase, actor="tester", payload_ref="pause",
+                 detail={"command_id": pause["command_id"], "target": "", "note": "演示暂停"})
+    pause_effect = cmd_mod.apply_command(store, cfg, state, pause)
+    emitter.emit("command.applied", stage=state.phase, actor="scheduler", payload_ref="pause",
+                 detail={"command_id": pause["command_id"], "effect": pause_effect})
+
+    retry = cmd_mod.issue_command(state, "retry_task", target="DEV-001", note="单卡重试", by="tester")
+    emitter.emit("command.issued", stage=state.phase, actor="tester", payload_ref="retry_task",
+                 detail={"command_id": retry["command_id"], "target": "DEV-001", "note": "单卡重试"})
+    retry_effect = cmd_mod.apply_command(store, cfg, state, retry)
+    emitter.emit("command.applied", stage=state.phase, actor="scheduler", payload_ref="retry_task",
+                 detail={"command_id": retry["command_id"], "effect": retry_effect})
+    store.save_state(state)
+
+    events = store.read_events(state.run_id)
+    issued = {str(e["detail"]["command_id"]) for e in events if e["event_type"] == "command.issued"}
+    applied = {str(e["detail"]["command_id"]) for e in events if e["event_type"] == "command.applied"}
+    fork_id = str(retry_effect.get("fork_run_id") or "")
+    fork_state = store.load_state(fork_id) if fork_id else None
+    ok = (
+        issued == applied
+        and len(issued) == 2
+        and bool(re.fullmatch(r".+\.fork\.\d+", fork_id))
+        and fork_state is not None
+        and fork_state.parent_run_id == state.run_id
+        and state.status == "waiting_human"
+    )
+    return _result(
+        "O2 命令成对落事件且 retry_task fork 血缘正确",
+        ok,
+        {"issued": sorted(issued), "applied": sorted(applied), "fork_id": fork_id, "pause_effect": pause_effect},
+    )
+
+
 CASES: list[tuple[str, Callable[[Path], dict[str, Any]]]] = [
     ("normal", case_normal_flow),
     ("p3_escalate", case_p3_escalate),
@@ -297,6 +471,10 @@ CASES: list[tuple[str, Callable[[Path], dict[str, Any]]]] = [
     ("budget", case_budget),
     ("resume", case_resume),
     ("schema", case_schema_invalid),
+    ("llm_injection", case_llm_injection),
+    ("resource_leveling", case_resource_leveling),
+    ("spans", case_spans_recorded),
+    ("command_fork", case_command_fork),
 ]
 
 

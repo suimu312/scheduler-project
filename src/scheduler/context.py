@@ -237,9 +237,10 @@ class RunEvent:
     actor: str
     payload_ref: str = ""
     budget_used: int = 0
+    detail: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "event_id": self.event_id,
             "run_id": self.run_id,
             "ts": self.ts,
@@ -249,6 +250,9 @@ class RunEvent:
             "payload_ref": self.payload_ref,
             "budget_used": self.budget_used,
         }
+        if self.detail:
+            out["detail"] = dict(self.detail)
+        return out
 
 
 @dataclass
@@ -264,10 +268,17 @@ class StageContext:
     ledger: BudgetLedger
     constraints: list[str] = field(default_factory=list)
     human_decisions: list[dict[str, Any]] = field(default_factory=list)
+    llm: Any = None  # LLMGateway：模型"注入口"，由 Runtime 统一实例化并计数
 
     def artifact_data(self, name: str) -> dict[str, Any]:
         art = self.artifacts.get(name) or {}
         return art.get("data") or {}
+
+    def ask(self, agent_id: str, prompt: str) -> str:
+        """模块调模型的唯一姿势：走 Gateway 计数，不在这里记账、不自己调 SDK。"""
+        if self.llm is None:
+            raise RuntimeError("本阶段没有注入 LLM 网关（Runtime 未初始化 llm）")
+        return self.llm.call(agent_id, prompt, self.stage)
 
 
 @dataclass
@@ -325,6 +336,8 @@ class RunConfig:
     seed: int = 42
     run_root: str = "runs"
     provider: str = "mock"  # mock | real：决定模块来源（mock 用于离线跑通状态机）
+    llm_provider: str = "offline"  # offline | agents | 自登记名：决定模型来源（见 llm_gateway）
+    parent_run_id: str | None = None  # fork 重跑时指向父运行实例
 
     @property
     def global_llm_calls(self) -> int:
@@ -355,6 +368,8 @@ class RunConfig:
             seed=int(obj.get("seed", 42)),
             run_root=str(obj.get("run_root", "runs")),
             provider=str(obj.get("provider", "mock")),
+            llm_provider=str(obj.get("llm_provider", "offline")),
+            parent_run_id=obj.get("parent_run_id"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -371,6 +386,8 @@ class RunConfig:
             "seed": self.seed,
             "run_root": self.run_root,
             "provider": self.provider,
+            "llm_provider": self.llm_provider,
+            "parent_run_id": self.parent_run_id,
         }
 
 
@@ -391,6 +408,8 @@ class RunState:
     pending: dict[str, Any] = field(default_factory=dict)
     termination_reason: str | None = None
     updated_at: str = field(default_factory=now_iso)
+    commands: list[dict[str, Any]] = field(default_factory=list)
+    parent_run_id: str | None = None
 
     def touch(self) -> None:
         self.updated_at = now_iso()
@@ -410,6 +429,8 @@ class RunState:
             "pending": dict(self.pending),
             "termination_reason": self.termination_reason,
             "updated_at": self.updated_at,
+            "commands": list(self.commands),
+            "parent_run_id": self.parent_run_id,
         }
 
     @classmethod
@@ -428,6 +449,8 @@ class RunState:
             pending=dict(obj.get("pending") or {}),
             termination_reason=obj.get("termination_reason"),
             updated_at=str(obj.get("updated_at") or now_iso()),
+            commands=list(obj.get("commands") or []),
+            parent_run_id=obj.get("parent_run_id"),
         )
 
 

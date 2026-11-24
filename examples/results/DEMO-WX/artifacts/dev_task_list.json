@@ -1,0 +1,201 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO-WX",
+    "stage": "P6",
+    "produced_by": "req_builder",
+    "created_at": "2026-11-24T10:08:06+08:00"
+  },
+  "data": {
+    "tasks": [
+      {
+        "task_id": "DEV-001",
+        "title": "讨论频道的消息收发与存储",
+        "module": "messaging",
+        "kind": "backend",
+        "feature_refs": [
+          "FEA-001"
+        ],
+        "requirement_refs": [
+          "REQ-001"
+        ],
+        "owner_role": "dev_backend",
+        "estimate_days": 3,
+        "depends_on": [],
+        "acceptance": [
+          "发送一条讨论后能在该频道读到",
+          "重启服务后历史消息不丢"
+        ],
+        "deliverable": "src/messaging"
+      },
+      {
+        "task_id": "DEV-002",
+        "title": "讨论归档与全文检索",
+        "module": "archive",
+        "kind": "backend",
+        "feature_refs": [
+          "FEA-002"
+        ],
+        "requirement_refs": [
+          "REQ-002"
+        ],
+        "owner_role": "dev_backend",
+        "estimate_days": 4,
+        "depends_on": [
+          "DEV-001"
+        ],
+        "acceptance": [
+          "能按项目归档讨论",
+          "关键词能命中 90 天内的归档"
+        ],
+        "deliverable": "src/archive"
+      },
+      {
+        "task_id": "DEV-003",
+        "title": "讨论列表与详情页",
+        "module": "web-chat",
+        "kind": "frontend",
+        "feature_refs": [
+          "FEA-001"
+        ],
+        "requirement_refs": [
+          "REQ-001"
+        ],
+        "owner_role": "dev_frontend",
+        "estimate_days": 3,
+        "depends_on": [
+          "DEV-001"
+        ],
+        "acceptance": [
+          "列表按时间倒序",
+          "详情页可回复"
+        ],
+        "deliverable": "src/web-chat"
+      },
+      {
+        "task_id": "DEV-004",
+        "title": "归档筛选与搜索框",
+        "module": "web-archive",
+        "kind": "frontend",
+        "feature_refs": [
+          "FEA-002"
+        ],
+        "requirement_refs": [
+          "REQ-002"
+        ],
+        "owner_role": "dev_frontend",
+        "estimate_days": 2,
+        "depends_on": [
+          "DEV-003",
+          "DEV-002"
+        ],
+        "acceptance": [
+          "可按项目与时间筛选",
+          "搜索无结果有兜底提示"
+        ],
+        "deliverable": "src/web-archive"
+      },
+      {
+        "task_id": "DEV-005",
+        "title": "文件与结论的关联登记",
+        "module": "attachment",
+        "kind": "data",
+        "feature_refs": [
+          "FEA-003"
+        ],
+        "requirement_refs": [
+          "REQ-003"
+        ],
+        "owner_role": "dev_data",
+        "estimate_days": 3,
+        "depends_on": [
+          "DEV-001"
+        ],
+        "acceptance": [
+          "文件可挂到某条结论上",
+          "关联关系可反查"
+        ],
+        "deliverable": "src/attachment"
+      },
+      {
+        "task_id": "DEV-006",
+        "title": "外部成员的可见性边界",
+        "module": "permission",
+        "kind": "integration",
+        "feature_refs": [
+          "FEA-003"
+        ],
+        "requirement_refs": [
+          "REQ-003"
+        ],
+        "owner_role": "dev_integration",
+        "estimate_days": 2,
+        "depends_on": [
+          "DEV-005"
+        ],
+        "acceptance": [
+          "外部成员看不到内部文件",
+          "越权请求被拒并留痕"
+        ],
+        "deliverable": "src/permission"
+      },
+      {
+        "task_id": "DEV-007",
+        "title": "主链路验收用例",
+        "module": "tests",
+        "kind": "test",
+        "feature_refs": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "requirement_refs": [
+          "REQ-001",
+          "REQ-002",
+          "REQ-003"
+        ],
+        "owner_role": "dev_test",
+        "estimate_days": 2,
+        "depends_on": [
+          "DEV-004",
+          "DEV-006"
+        ],
+        "acceptance": [
+          "主链路脚本全部通过",
+          "失败用例能定位到具体卡"
+        ],
+        "deliverable": "src/tests"
+      },
+      {
+        "task_id": "DEV-008",
+        "title": "接口说明与部署手册",
+        "module": "docs",
+        "kind": "docs",
+        "feature_refs": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "requirement_refs": [
+          "REQ-001",
+          "REQ-002",
+          "REQ-003"
+        ],
+        "owner_role": "dev_docs",
+        "estimate_days": 1,
+        "depends_on": [
+          "DEV-007"
+        ],
+        "acceptance": [
+          "README 能按步骤跑起来",
+          "接口字段与返回码齐全"
+        ],
+        "deliverable": "src/docs"
+      }
+    ],
+    "source_ref": "idea_card:design_spec",
+    "decomposition_by": "A6/pm_agent",
+    "note": "开发任务清单（WBS），与 §4.1 的执行卡 T-P1-01…T-P7-02 不是同一套"
+  },
+  "extensions": {}
+}
