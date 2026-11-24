@@ -1,0 +1,320 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P7",
+    "produced_by": "baseline_mgr",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "run_id": "REAL",
+    "summary": {
+      "total_tasks": 3,
+      "total_waves": 3,
+      "total_days": 5.5,
+      "critical_path": [
+        "DEV-001",
+        "DEV-002",
+        "DEV-003"
+      ]
+    },
+    "tasks": [
+      {
+        "task_id": "DEV-001",
+        "module": "MOD-001",
+        "module_id": "MOD-001",
+        "title": "实现讨论频道的消息收发与存储",
+        "depends_on": [],
+        "estimate_days": 2.0,
+        "owner_role": "dev_backend",
+        "acceptance": [
+          {
+            "ac_id": "AC-DEV-001-1",
+            "given": "",
+            "when": "",
+            "then": "提交讨论频道的消息收发与存储后，查询接口返回包含该条目的结果",
+            "type": "functional"
+          }
+        ],
+        "priority": "must",
+        "priority_reason": "P1 被 2 张卡依赖",
+        "priority_source": "rule",
+        "feature_refs": [
+          "FEA-001"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-001",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "status": "pending"
+      },
+      {
+        "task_id": "DEV-002",
+        "module": "MOD-002",
+        "module_id": "MOD-002",
+        "title": "实现讨论归档与全文检索",
+        "depends_on": [
+          "DEV-001"
+        ],
+        "estimate_days": 1.5,
+        "owner_role": "dev_frontend",
+        "acceptance": [
+          {
+            "ac_id": "AC-DEV-002-1",
+            "given": "",
+            "when": "",
+            "then": "提交讨论归档与全文检索后，查询接口返回包含该条目的结果",
+            "type": "functional"
+          }
+        ],
+        "priority": "must",
+        "priority_reason": "P1 被 1 张卡依赖",
+        "priority_source": "rule",
+        "feature_refs": [
+          "FEA-002"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-002",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "status": "pending"
+      },
+      {
+        "task_id": "DEV-003",
+        "module": "MOD-003",
+        "module_id": "MOD-003",
+        "title": "实现文件与结论的关联登记",
+        "depends_on": [
+          "DEV-002"
+        ],
+        "estimate_days": 2.0,
+        "owner_role": "dev_data",
+        "acceptance": [
+          {
+            "ac_id": "AC-DEV-003-1",
+            "given": "",
+            "when": "",
+            "then": "提交文件与结论的关联登记后，查询接口返回包含该条目的结果",
+            "type": "functional"
+          }
+        ],
+        "priority": "should",
+        "priority_reason": "P5 得分 0.57（用户价值 1.00 / 下游 0 / 工期压力 0.33）",
+        "priority_source": "rule",
+        "feature_refs": [
+          "FEA-003"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-003",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "status": "pending"
+      }
+    ],
+    "schedule": {
+      "generated_at": "2026-11-24T10:43:12+08:00",
+      "max_wave_width": 4,
+      "meta": {
+        "run_id": "REAL",
+        "title": "[design_spec]",
+        "baseline_version": "v1.0"
+      },
+      "errors": [],
+      "warnings": [],
+      "valid": true,
+      "tasks": [
+        {
+          "task_id": "DEV-001",
+          "module": "MOD-001",
+          "module_id": "MOD-001",
+          "title": "实现讨论频道的消息收发与存储",
+          "depends_on": [],
+          "estimate_days": 2.0,
+          "owner_role": "dev_backend",
+          "acceptance": [
+            {
+              "ac_id": "AC-DEV-001-1",
+              "given": "",
+              "when": "",
+              "then": "提交讨论频道的消息收发与存储后，查询接口返回包含该条目的结果",
+              "type": "functional"
+            }
+          ],
+          "priority": "must",
+          "priority_reason": "P1 被 2 张卡依赖",
+          "priority_source": "rule",
+          "feature_refs": [
+            "FEA-001"
+          ],
+          "source_refs": [
+            "solution_comparison:FEA-001",
+            "design_spec:CON-001",
+            "design_spec:CON-002",
+            "design_spec:CON-003",
+            "conflict_register:CFL-001"
+          ],
+          "status": "pending",
+          "wave": 1,
+          "start_day": 1.0,
+          "end_day": 2.0,
+          "slack": 0.0,
+          "critical": true
+        },
+        {
+          "task_id": "DEV-002",
+          "module": "MOD-002",
+          "module_id": "MOD-002",
+          "title": "实现讨论归档与全文检索",
+          "depends_on": [
+            "DEV-001"
+          ],
+          "estimate_days": 1.5,
+          "owner_role": "dev_frontend",
+          "acceptance": [
+            {
+              "ac_id": "AC-DEV-002-1",
+              "given": "",
+              "when": "",
+              "then": "提交讨论归档与全文检索后，查询接口返回包含该条目的结果",
+              "type": "functional"
+            }
+          ],
+          "priority": "must",
+          "priority_reason": "P1 被 1 张卡依赖",
+          "priority_source": "rule",
+          "feature_refs": [
+            "FEA-002"
+          ],
+          "source_refs": [
+            "solution_comparison:FEA-002",
+            "design_spec:CON-001",
+            "design_spec:CON-002",
+            "design_spec:CON-003",
+            "conflict_register:CFL-001"
+          ],
+          "status": "pending",
+          "wave": 2,
+          "start_day": 3.0,
+          "end_day": 3.5,
+          "slack": 0.0,
+          "critical": true
+        },
+        {
+          "task_id": "DEV-003",
+          "module": "MOD-003",
+          "module_id": "MOD-003",
+          "title": "实现文件与结论的关联登记",
+          "depends_on": [
+            "DEV-002"
+          ],
+          "estimate_days": 2.0,
+          "owner_role": "dev_data",
+          "acceptance": [
+            {
+              "ac_id": "AC-DEV-003-1",
+              "given": "",
+              "when": "",
+              "then": "提交文件与结论的关联登记后，查询接口返回包含该条目的结果",
+              "type": "functional"
+            }
+          ],
+          "priority": "should",
+          "priority_reason": "P5 得分 0.57（用户价值 1.00 / 下游 0 / 工期压力 0.33）",
+          "priority_source": "rule",
+          "feature_refs": [
+            "FEA-003"
+          ],
+          "source_refs": [
+            "solution_comparison:FEA-003",
+            "design_spec:CON-001",
+            "design_spec:CON-002",
+            "design_spec:CON-003",
+            "conflict_register:CFL-001"
+          ],
+          "status": "pending",
+          "wave": 3,
+          "start_day": 4.5,
+          "end_day": 5.5,
+          "slack": 0.0,
+          "critical": true
+        }
+      ],
+      "waves": [
+        {
+          "wave": 1,
+          "task_ids": [
+            "DEV-001"
+          ],
+          "width": 1,
+          "start_day": 1.0,
+          "end_day": 2.0
+        },
+        {
+          "wave": 2,
+          "task_ids": [
+            "DEV-002"
+          ],
+          "width": 1,
+          "start_day": 3.0,
+          "end_day": 3.5
+        },
+        {
+          "wave": 3,
+          "task_ids": [
+            "DEV-003"
+          ],
+          "width": 1,
+          "start_day": 4.5,
+          "end_day": 5.5
+        }
+      ],
+      "critical_path": {
+        "task_ids": [
+          "DEV-001",
+          "DEV-002",
+          "DEV-003"
+        ],
+        "total_days": 5.5
+      },
+      "critical_tasks": [
+        "DEV-001",
+        "DEV-002",
+        "DEV-003"
+      ],
+      "resource_conflicts": [],
+      "total_days": 5.5,
+      "summary": {
+        "tasks": 3,
+        "waves": 3,
+        "person_days": 5.5
+      },
+      "slack": {
+        "DEV-001": 0.0,
+        "DEV-002": 0.0,
+        "DEV-003": 0.0
+      },
+      "max_wave_width_actual": 1
+    },
+    "coverage_status": {
+      "coverage_rate": 1.0,
+      "gap_count": 0
+    },
+    "review_opinions": [],
+    "signature_block": {
+      "required": true,
+      "hint": "请输入签字理由"
+    }
+  },
+  "extensions": {
+    "artifact_name": "confirmation_sheet"
+  }
+}

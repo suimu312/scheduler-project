@@ -1,0 +1,121 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P6",
+    "produced_by": "req_builder",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "rows": [
+      {
+        "source_type": "feature",
+        "source_id": "FEA-001",
+        "source_ref": "solution_comparison:FEA-001",
+        "title": "讨论频道的消息收发与存储",
+        "weight": 3,
+        "covered_by": [
+          "DEV-001"
+        ],
+        "status": "covered"
+      },
+      {
+        "source_type": "feature",
+        "source_id": "FEA-002",
+        "source_ref": "solution_comparison:FEA-002",
+        "title": "讨论归档与全文检索",
+        "weight": 3,
+        "covered_by": [
+          "DEV-002"
+        ],
+        "status": "covered"
+      },
+      {
+        "source_type": "feature",
+        "source_id": "FEA-003",
+        "source_ref": "solution_comparison:FEA-003",
+        "title": "文件与结论的关联登记",
+        "weight": 3,
+        "covered_by": [
+          "DEV-003"
+        ],
+        "status": "covered"
+      },
+      {
+        "source_type": "constraint",
+        "source_id": "CON-001",
+        "source_ref": "design_spec:CON-001",
+        "title": "只做 PC 端 Web，不做小程序",
+        "weight": 3,
+        "covered_by": [
+          "DEV-001",
+          "DEV-002",
+          "DEV-003"
+        ],
+        "status": "covered"
+      },
+      {
+        "source_type": "constraint",
+        "source_id": "CON-002",
+        "source_ref": "design_spec:CON-002",
+        "title": "单项目成员上限 100",
+        "weight": 3,
+        "covered_by": [
+          "DEV-001",
+          "DEV-002",
+          "DEV-003"
+        ],
+        "status": "covered"
+      },
+      {
+        "source_type": "constraint",
+        "source_id": "CON-003",
+        "source_ref": "design_spec:CON-003",
+        "title": "不做已读回执",
+        "weight": 3,
+        "covered_by": [
+          "DEV-001",
+          "DEV-002",
+          "DEV-003"
+        ],
+        "status": "covered"
+      },
+      {
+        "source_type": "conflict",
+        "source_id": "CFL-001",
+        "source_ref": "conflict_register:CFL-001",
+        "title": "granularity",
+        "weight": 2,
+        "covered_by": [
+          "DEV-001",
+          "DEV-002",
+          "DEV-003"
+        ],
+        "status": "covered"
+      }
+    ],
+    "columns": [
+      "DEV-001",
+      "DEV-002",
+      "DEV-003"
+    ],
+    "gap_count": 0,
+    "coverage_rate": 1.0,
+    "r_source": 1.0,
+    "r_task": 1.0,
+    "gaps": [],
+    "gate": {
+      "gap_count": 0,
+      "coverage_rate": 1.0,
+      "all_have_acceptance": true,
+      "must_sources_covered": true,
+      "self_check_pass": true,
+      "g_p6_p7_data": true
+    },
+    "generated_from": {
+      "spec": "design_spec",
+      "plan": "solution_comparison"
+    }
+  },
+  "extensions": {}
+}

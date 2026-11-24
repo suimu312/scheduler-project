@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P6",
+    "produced_by": "req_builder",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "requirements": [
+      {
+        "req_id": "REQ-001",
+        "title": "讨论频道的消息收发与存储",
+        "description": "依据已采纳方案落地：讨论频道的消息收发与存储",
+        "acceptance_criteria": [
+          {
+            "given": "用户已进入对应业务场景",
+            "when": "执行FEA-001对应的操作",
+            "then": "系统返回结果，并在列表中显示新增记录（讨论频道的消息收发与存储）"
+          }
+        ],
+        "priority": "must",
+        "depends_on": [],
+        "source_refs": [
+          "solution_comparison:FEA-001.adopted"
+        ],
+        "baseline_version": "v1.0"
+      },
+      {
+        "req_id": "REQ-002",
+        "title": "讨论归档与全文检索",
+        "description": "依据已采纳方案落地：讨论归档与全文检索",
+        "acceptance_criteria": [
+          {
+            "given": "用户已进入对应业务场景",
+            "when": "执行FEA-002对应的操作",
+            "then": "系统返回结果，并在列表中显示新增记录（讨论归档与全文检索）"
+          }
+        ],
+        "priority": "must",
+        "depends_on": [],
+        "source_refs": [
+          "solution_comparison:FEA-002.adopted"
+        ],
+        "baseline_version": "v1.0"
+      },
+      {
+        "req_id": "REQ-003",
+        "title": "文件与结论的关联登记",
+        "description": "依据已采纳方案落地：文件与结论的关联登记",
+        "acceptance_criteria": [
+          {
+            "given": "用户已进入对应业务场景",
+            "when": "执行FEA-003对应的操作",
+            "then": "系统返回结果，并在列表中显示新增记录（文件与结论的关联登记）"
+          }
+        ],
+        "priority": "must",
+        "depends_on": [],
+        "source_refs": [
+          "solution_comparison:FEA-003.adopted"
+        ],
+        "baseline_version": "v1.0"
+      }
+    ],
+    "hard_validation": {
+      "all_have_acceptance_criteria": true
+    }
+  },
+  "extensions": {}
+}

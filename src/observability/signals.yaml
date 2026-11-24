@@ -1,0 +1,182 @@
+# 观测判据层 · 信号定义
+# 维护：D（质量评审员）｜归属：O3 判据与检出表
+# 约定：一个信号 = 证据 + 判定式 + 处置，三样缺一不可。
+#      判定式必须是纯函数（读事件流与产物，不调模型、不计预算），与 gate_rule.yaml 同构。
+
+version: 1
+meta:
+  owner: D
+  scope: run-level
+  rule_convention: "判定式只读 events.jsonl 与 artifacts/*.json，禁止调用模型"
+  level_convention: "info=仅提示 / warn=需人注意 / block=必须干预（进等待人态）"
+
+signals:
+
+  - id: OBS-01
+    name: 预算余量
+    code: budget_headroom
+    evidence:
+      source: events
+      filter: "event_type == 'budget.charged'"
+      field: "budget_used（末条）与 ledger.global_limit"
+      note: "现网只有次数，没有 token 数；接真模型后需在 model.call 事件里补 prompt_tokens / completion_tokens"
+    rule: "headroom = 1 - budget_used / global_limit"
+    thresholds:
+      - when: "headroom < 0.20 且 stage != 'P7'"
+        level: warn
+        hint: "再跑一轮就可能耗尽，建议降低并行度或直接进 P7"
+      - when: "headroom <= 0"
+        level: block
+        hint: "已耗尽，转等待人，由人决定加预算还是交现有结果"
+    attribution: 引擎层
+    action: 提示可用干预：reduce_concurrency / goto_p7 / escalate
+    view: 顶部健康条（预算段）
+
+  - id: OBS-02
+    name: 阶段停留超时
+    code: stage_dwell
+    evidence:
+      source: events
+      filter: "event_type in ('stage.enter', 'stage.exit')，按 stage 配对"
+      field: "ts 差值"
+      note: "基线取历史 run 的该阶段 P95；无历史时用固定上限（首次运行按 10 分钟）"
+    rule: "dwell(stage) = ts(stage.exit) - ts(stage.enter)；超时 = dwell > 2 × p95(stage)"
+    thresholds:
+      - when: "dwell > 2 × p95(stage)"
+        level: warn
+        hint: "下钻该阶段最长的 span，看是等模型、等人工，还是卡在校验重试"
+    attribution: 阶段层
+    action: 打开单卡瀑布并定位最长 span
+    view: 阶段泳道（时长角标）
+
+  - id: OBS-03
+    name: 单卡重试超限
+    code: task_retry
+    evidence:
+      source: events
+      filter: "同一 task_id 在 task.dispatched 与 task.completed 之间的 model.call 次数"
+      field: "count(model.call)"
+    rule: "retry(task) = count(model.call) - 1；超限 = retry > 3"
+    thresholds:
+      - when: "retry > 3"
+        level: block
+        hint: "该卡上下文或提示词有问题，重跑同参数不会变好；建议人工改参数后单卡重试"
+    attribution: 任务层
+    action: 单卡重试（可改参数）／标记为问题卡
+    view: 告警列表 + 甘特条上的重试标记
+
+  - id: OBS-04
+    name: 依赖成环
+    code: dep_cycle
+    evidence:
+      source: artifact
+      path: "schedule.errors[] / dev_task_list"
+      field: "错误码 E_DEP_CYCLE 与环上任务列表"
+      note: "现有 validate_task_list 已能检出，本信号只是把它抬到观测层可见"
+    rule: "exists(err.code == 'E_DEP_CYCLE')"
+    thresholds:
+      - when: "命中"
+        level: block
+        hint: "P7 不可继续；退 P6 修依赖，不要靠人工点击绕过"
+    attribution: 方案层 → 退 P6
+    action: 自动退回 P6 并高亮环上节点
+    view: 依赖图（环用红色描边并列出任务号）
+
+  - id: OBS-05
+    name: 依赖死锁
+    code: deadlock
+    evidence:
+      source: events
+      filter: "event_type == 'run.blocked'"
+      field: "reason"
+    rule: "exists(reason == 'deadlock') 或 ready 集合为空但仍有未完成任务"
+    thresholds:
+      - when: "命中"
+        level: block
+        hint: "没有可派发的卡，但流程未结束；通常是闸门与依赖互相等待"
+    attribution: 引擎层
+    action: 转等待人，导出当前 ready 集合与未完成卡
+    view: 告警列表（置顶）
+
+  - id: OBS-06
+    name: 发言趋同
+    code: statement_similarity
+    evidence:
+      source: events
+      filter: "event_type == 'guard.signal'"
+      field: "similarity、被判无效的块 id"
+      note: "阈值 0.85 沿用设计定稿，不新拍"
+    rule: "similarity > 0.85 → 判该次发言无效"
+    thresholds:
+      - when: "同一轮内无效发言 >= 2"
+        level: warn
+        hint: "讨论在复读，不是在想问题；建议插一次定向质询而不是继续投票"
+    attribution: 讨论层
+    action: 灰蒙层标注相似度数值 + 建议插质询
+    view: 交锋图（无效块叠灰并标数值）
+
+  - id: OBS-07
+    name: 角色沉默
+    code: agent_silence
+    evidence:
+      source: events
+      filter: "event_type == 'agent.on_stage' / 'agent.statement'，按 agent_id 与 round 统计"
+      field: "连续未发言轮数"
+    rule: "silent(agent) = 连续 round 数（无 agent.statement）；超限 = silent >= 2"
+    thresholds:
+      - when: "silent >= 2"
+        level: warn
+        hint: "风险视角通常最后被想起来；建议强制给一次发言权（设计里已有此机制）"
+    attribution: 讨论层
+    action: 高亮该角色 + 触发强制补发言
+    view: 交锋图（沉默角色泳道变虚）
+
+  - id: OBS-08
+    name: 覆盖空缺
+    code: coverage_gap
+    evidence:
+      source: artifact
+      path: "coverage_matrix.gap_count / rows[]"
+      field: "gap_count、未覆盖的来源 id"
+    rule: "gap = coverage_matrix.gap_count"
+    thresholds:
+      - when: "gap > 0"
+        level: block
+        hint: "有规格要求没有任何任务覆盖，P6 不许定稿"
+    attribution: 需求层 → 退 P3 补质询或退 P6 补卡
+    action: 空行留白呈现（不涂红），点开显示缺的 FEA / CON
+    view: 覆盖热图（空缺留白）
+
+  - id: OBS-09
+    name: 关键路径漂移
+    code: schedule_drift
+    evidence:
+      source: artifact + events
+      path: "schedule.waves / schedule.total_days 与实际 task.completed 的波次对比"
+      field: "实际完成波次、计划波次、total_days"
+    rule: "drift = 实际完成波次 - 计划波次；超限 = drift >= 1"
+    thresholds:
+      - when: "drift >= 1"
+        level: warn
+        hint: "排期没兑现，先看是估时偏乐观还是资源冲突没处理"
+    attribution: 编排层
+    action: 甘特图高亮漂移条并标注偏差天数
+    view: 甘特（漂移条）
+
+  # 以下为实验性信号，接真模型、有墙钟耗时之后再启用
+  - id: OBS-10
+    name: 并发失真
+    code: concurrency_distortion
+    status: experimental
+    evidence:
+      source: events
+      filter: "event_id 顺序与 ts 顺序"
+      field: "两者排序不一致的连续区段"
+    rule: "exists(区间 where order_by(event_id) != order_by(ts))"
+    thresholds:
+      - when: "命中"
+        level: info
+        hint: "该区段发生了并发或等待，时间轴已不足以表达，建议切交锋图"
+    attribution: 呈现层
+    action: 自动切换该区段的渲染方式
+    view: 交锋图（自动切段）

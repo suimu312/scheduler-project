@@ -105,8 +105,8 @@ def render(window: ReplayWindow, artifacts: dict, width: float = 1180) -> tuple[
     schedule = _schedule_of(artifacts) or _fallback_schedule(artifacts)
     rows = _rows(schedule)
     waves = sorted({int(r.get("wave_no") or 1) for r in rows}) or [1]
-    total_days = max(1, int(math.ceil(_total_days_of(schedule, rows))))
-    limit = int(schedule.get("parallel_limit") or 3)
+    total_days = max(1, int(math.ceil(float(schedule.get("total_days") or _total_days_of(schedule, rows)))))
+    limit = int(schedule.get("max_wave_width") or schedule.get("parallel_limit") or 4)
     height = TOP + max(1, len(rows)) * ROW_H + 46
 
     if not rows:
@@ -204,6 +204,16 @@ def render(window: ReplayWindow, artifacts: dict, width: float = 1180) -> tuple[
         if bar_w > svg.text_width(label, 8.5) + 6:
             parts.append(svg.text(bar_x + 4, y + ROW_H - 9, label, size=8.5, fill=INK,
                                   weight="bold" if critical else "normal"))
+        # 任务标题：紧跟条尾，超宽截断。只写任务号的话，换一份规格页面看起来是一样的。
+        title = str(row.get("title") or "")
+        if title:
+            title_x = bar_x + bar_w + 6
+            room = width - title_x - 8
+            if room > 30:
+                parts.append(
+                    svg.text(title_x, y + ROW_H - 9, svg.clip(title, 8, room), size=8,
+                             fill=INK_SUB if not critical else CRITICAL)
+                )
 
     # 关键路径与并行度标注
     # A 的 schedule.json 里 critical_path 是对象 {"task_ids": [...], "total_days": 12.0}，

@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO",
+    "stage": "P1",
+    "produced_by": "scheduler",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "idea_text": "[design_spec]",
+    "author": "user",
+    "constraints": [],
+    "design_spec": {
+      "spec_id": "SPEC-001",
+      "product": "微信群讨论归档助手：让一个 50 人以内的小组把讨论过程沉淀下来、按结论回溯",
+      "scope_in": [
+        "FEA-001",
+        "FEA-002",
+        "FEA-003"
+      ],
+      "scope_out": [
+        "即时语音视频",
+        "跨企业多租户",
+        "已读回执"
+      ],
+      "features": [
+        {
+          "feature_id": "FEA-001",
+          "title": "讨论频道的消息收发与存储",
+          "description": "围绕单个项目建讨论频道，消息按时间线沉淀"
+        },
+        {
+          "feature_id": "FEA-002",
+          "title": "讨论归档与全文检索",
+          "description": "讨论可按项目、时间、关键词检索"
+        },
+        {
+          "feature_id": "FEA-003",
+          "title": "文件与结论的关联登记",
+          "description": "文件与结论可互相关联，方便复盘"
+        }
+      ],
+      "constraints": [
+        {
+          "constraint_id": "CON-001",
+          "title": "只做 PC 端 Web，不做小程序"
+        },
+        {
+          "constraint_id": "CON-002",
+          "title": "单项目成员上限 100"
+        },
+        {
+          "constraint_id": "CON-003",
+          "title": "不做已读回执"
+        }
+      ],
+      "modules": [
+        {
+          "module_id": "MOD-001",
+          "title": "频道与消息服务",
+          "owner_role": "dev_backend"
+        },
+        {
+          "module_id": "MOD-002",
+          "title": "归档检索服务",
+          "owner_role": "dev_backend"
+        },
+        {
+          "module_id": "MOD-003",
+          "title": "文件关联服务",
+          "owner_role": "dev_data"
+        }
+      ],
+      "nfr": [
+        {
+          "nfr_id": "NFR-001",
+          "title": "归档关键词检索 p95 ≤ 300ms"
+        }
+      ],
+      "acceptance_policy": "Given-When-Then；每条验收必须写明操作后的可观察结果",
+      "normalized_at": "2026-11-24T10:43:12+08:00",
+      "normalization": {
+        "input_fields": [
+          "acceptance_policy",
+          "constraints",
+          "features",
+          "modules",
+          "nfr",
+          "product",
+          "scope_in",
+          "scope_out",
+          "spec_id"
+        ],
+        "derived_modules": false,
+        "legacy_aliases": []
+      }
+    },
+    "input_mode": "design_spec"
+  },
+  "extensions": {}
+}

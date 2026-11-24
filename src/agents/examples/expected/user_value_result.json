@@ -1,0 +1,65 @@
+{
+  "artifacts": {
+    "user_value_assessment": {
+      "meta": {
+        "schema_version": "1.0",
+        "run_id": "B-DEMO-001",
+        "stage": "P6",
+        "producer": "B",
+        "artifact_name": "user_value_assessment"
+      },
+      "data": {
+        "items": [
+          {
+            "task_ref": "dev_task_list:DEV-001",
+            "source_refs": [
+              "design_spec:FEA-001"
+            ],
+            "suggested_priority": "M",
+            "reason": "强制要求或核心用户流程",
+            "needs_confirmation": false,
+            "acceptance_present": true,
+            "granularity_warning": null
+          },
+          {
+            "task_ref": "dev_task_list:DEV-002",
+            "source_refs": [
+              "design_spec:FEA-002",
+              "design_spec:CON-001"
+            ],
+            "suggested_priority": "M",
+            "reason": "强制要求或核心用户流程",
+            "needs_confirmation": false,
+            "acceptance_present": true,
+            "granularity_warning": null
+          },
+          {
+            "task_ref": "dev_task_list:DEV-003",
+            "source_refs": [
+              "design_spec:FEA-003"
+            ],
+            "suggested_priority": "S",
+            "reason": "显式高用户价值",
+            "needs_confirmation": false,
+            "acceptance_present": true,
+            "granularity_warning": null
+          },
+          {
+            "task_ref": "dev_task_list:DEV-004",
+            "source_refs": [
+              "design_spec:FEA-004"
+            ],
+            "suggested_priority": "C",
+            "reason": "显式低用户价值",
+            "needs_confirmation": false,
+            "acceptance_present": true,
+            "granularity_warning": null
+          }
+        ],
+        "binding": false
+      }
+    }
+  },
+  "events": [],
+  "usage": 0
+}

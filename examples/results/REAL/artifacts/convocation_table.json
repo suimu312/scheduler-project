@@ -1,0 +1,291 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P2",
+    "produced_by": "agents",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "items": [
+      {
+        "source_ref": "design_spec:FEA-001",
+        "categories": [
+          "functional"
+        ],
+        "confidence": 0.92,
+        "responsibility": "围绕单个项目建讨论频道，消息按时间线沉淀",
+        "owner_role": "A2",
+        "invited": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "reason": "按分类召集；A3/A4 必须在场",
+        "participation": {
+          "A1": "deliberative",
+          "A2": "deliberative",
+          "A3": "deliberative",
+          "A4": "deliberative"
+        }
+      },
+      {
+        "source_ref": "design_spec:FEA-002",
+        "categories": [
+          "functional",
+          "technical"
+        ],
+        "confidence": 0.92,
+        "responsibility": "讨论可按项目、时间、关键词检索",
+        "owner_role": "A3",
+        "invited": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "reason": "按分类召集；A3/A4 必须在场",
+        "participation": {
+          "A1": "deliberative",
+          "A2": "deliberative",
+          "A3": "deliberative",
+          "A4": "deliberative"
+        }
+      },
+      {
+        "source_ref": "design_spec:FEA-003",
+        "categories": [
+          "functional"
+        ],
+        "confidence": 0.92,
+        "responsibility": "文件与结论可互相关联，方便复盘",
+        "owner_role": "A2",
+        "invited": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "reason": "按分类召集；A3/A4 必须在场",
+        "participation": {
+          "A1": "deliberative",
+          "A2": "deliberative",
+          "A3": "deliberative",
+          "A4": "deliberative"
+        }
+      }
+    ],
+    "by_problem": {
+      "PRB-001": {
+        "on_stage": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "reason": "按分类召集；A3/A4 必须在场"
+      },
+      "PRB-002": {
+        "on_stage": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "reason": "按分类召集；A3/A4 必须在场"
+      },
+      "PRB-003": {
+        "on_stage": [
+          "A1",
+          "A2",
+          "A3",
+          "A4"
+        ],
+        "reason": "按分类召集；A3/A4 必须在场"
+      }
+    },
+    "on_stage": [
+      "A1",
+      "A2",
+      "A3",
+      "A4"
+    ]
+  },
+  "extensions": {
+    "b_context": {
+      "artifacts": {
+        "design_spec": {
+          "meta": {
+            "schema_version": "1.0",
+            "run_id": "REAL",
+            "stage": "P1",
+            "producer": "B",
+            "artifact_name": "design_spec"
+          },
+          "data": {
+            "spec_id": "SPEC-001",
+            "product": "微信群讨论归档助手：让一个 50 人以内的小组把讨论过程沉淀下来、按结论回溯",
+            "scope_in": [
+              "FEA-001",
+              "FEA-002",
+              "FEA-003"
+            ],
+            "scope_out": [
+              "即时语音视频",
+              "跨企业多租户",
+              "已读回执"
+            ],
+            "features": [
+              {
+                "feature_id": "FEA-001",
+                "title": "讨论频道的消息收发与存储",
+                "description": "围绕单个项目建讨论频道，消息按时间线沉淀"
+              },
+              {
+                "feature_id": "FEA-002",
+                "title": "讨论归档与全文检索",
+                "description": "讨论可按项目、时间、关键词检索"
+              },
+              {
+                "feature_id": "FEA-003",
+                "title": "文件与结论的关联登记",
+                "description": "文件与结论可互相关联，方便复盘"
+              }
+            ],
+            "constraints": [
+              {
+                "constraint_id": "CON-001",
+                "title": "只做 PC 端 Web，不做小程序"
+              },
+              {
+                "constraint_id": "CON-002",
+                "title": "单项目成员上限 100"
+              },
+              {
+                "constraint_id": "CON-003",
+                "title": "不做已读回执"
+              }
+            ],
+            "modules": [
+              {
+                "module_id": "MOD-001",
+                "title": "频道与消息服务",
+                "owner_role": "dev_backend"
+              },
+              {
+                "module_id": "MOD-002",
+                "title": "归档检索服务",
+                "owner_role": "dev_backend"
+              },
+              {
+                "module_id": "MOD-003",
+                "title": "文件关联服务",
+                "owner_role": "dev_data"
+              }
+            ],
+            "nfr": [
+              {
+                "nfr_id": "NFR-001",
+                "title": "归档关键词检索 p95 ≤ 300ms"
+              }
+            ],
+            "acceptance_policy": "Given-When-Then；每条验收必须写明操作后的可观察结果",
+            "normalized_at": "2026-11-24T10:43:12+08:00",
+            "normalization": {
+              "input_fields": [
+                "acceptance_policy",
+                "constraints",
+                "features",
+                "modules",
+                "nfr",
+                "product",
+                "scope_in",
+                "scope_out",
+                "spec_id"
+              ],
+              "derived_modules": false,
+              "legacy_aliases": []
+            }
+          }
+        },
+        "material_catalog": {
+          "meta": {
+            "schema_version": "1.0",
+            "run_id": "REAL",
+            "stage": "P2",
+            "producer": "B",
+            "artifact_name": "material_catalog"
+          },
+          "data": {
+            "items": [
+              {
+                "category": "business",
+                "text": "本期业务目标：微信群讨论归档助手：让一个 50 人以内的小组把讨论过程沉淀下来、按结论回溯",
+                "source_refs": [
+                  "design_spec:SPEC-001"
+                ],
+                "source_ref": "material_catalog:MAT-001",
+                "derived_from_design_spec": true
+              },
+              {
+                "category": "budget",
+                "text": "成本边界仅引用已给定的技术/成本约束；未给定基准时不自行估算。",
+                "source_refs": [
+                  "design_spec:SPEC-001"
+                ],
+                "source_ref": "material_catalog:MAT-002",
+                "derived_from_design_spec": true
+              },
+              {
+                "category": "user_feedback",
+                "text": "本期显式范围：FEA-001、FEA-002、FEA-003",
+                "source_refs": [
+                  "design_spec:FEA-001"
+                ],
+                "source_ref": "material_catalog:MAT-003",
+                "derived_from_design_spec": true
+              },
+              {
+                "category": "architecture",
+                "text": "规格模块：MOD-001 频道与消息服务；MOD-002 归档检索服务；MOD-003 文件关联服务",
+                "source_refs": [
+                  "design_spec:SPEC-001"
+                ],
+                "source_ref": "material_catalog:MAT-004",
+                "derived_from_design_spec": true
+              },
+              {
+                "category": "risk",
+                "text": "约束与排除项：只做 PC 端 Web，不做小程序；单项目成员上限 100；不做已读回执；即时语音视频；跨企业多租户；已读回执",
+                "source_refs": [
+                  "design_spec:SPEC-001"
+                ],
+                "source_ref": "material_catalog:MAT-005",
+                "derived_from_design_spec": true
+              },
+              {
+                "category": "acceptance_library",
+                "text": "验收口径约定：Given-When-Then；每条验收必须写明操作后的可观察结果；FEA-001、FEA-002、FEA-003",
+                "source_refs": [
+                  "design_spec:SPEC-001"
+                ],
+                "source_ref": "material_catalog:MAT-006",
+                "derived_from_design_spec": true
+              },
+              {
+                "category": "confirmation",
+                "text": "签署需核对范围、覆盖与排期；规格标识为 SPEC-001。",
+                "source_refs": [
+                  "design_spec:SPEC-001"
+                ],
+                "source_ref": "material_catalog:MAT-007",
+                "derived_from_design_spec": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

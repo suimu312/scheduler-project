@@ -31,14 +31,72 @@ MAX_COLW = 26
 def _coverage_of(artifacts: dict[str, Any]) -> dict[str, Any]:
     # E 的产物名是 task_coverage；A 早期版本落的是 coverage_matrix，
     # 两者 data 形状一致（rows / columns / gap_count / coverage_rate），直接兼容。
-    raw = artifacts.get("task_coverage") or artifacts.get("coverage_matrix")
+    for key in ("task_coverage", "coverage_matrix"):
+        payload = _payload(artifacts, key)
+        if payload:
+            return payload
+    return {}
+
+
+def _payload(artifacts: dict[str, Any], name: str) -> dict[str, Any]:
+    raw = artifacts.get(name)
     if not raw:
         return {}
     return raw.get("data", raw) if isinstance(raw, dict) else {}
 
 
+def _feature_titles(artifacts: dict[str, Any]) -> dict[str, str]:
+    """功能点标题：先看 solution_comparison.feature_items，再退回设计规格原文。"""
+    titles: dict[str, str] = {}
+    for item in _payload(artifacts, "solution_comparison").get("feature_items") or []:
+        if isinstance(item, dict) and item.get("feature_id"):
+            titles[str(item["feature_id"])] = str(item.get("title") or "")
+    spec = _payload(artifacts, "idea_card").get("design_spec") or {}
+    for index, item in enumerate(spec.get("features") or [], start=1):
+        fid = f"FEA-{index:03d}"
+        if fid not in titles:
+            titles[fid] = str(item.get("title") if isinstance(item, dict) else item)
+    return titles
+
+
+def _matrix_from_tasks(artifacts: dict[str, Any]) -> dict[str, Any]:
+    """用 dev_task_list 的 feature_refs 现算 行=功能点 × 列=任务卡 的覆盖矩阵。
+
+    引擎的 coverage_matrix 是「功能点 × 需求号」，看不出哪张卡承接哪条功能；
+    这个视图要回答的是「这条功能有没有卡在干」，所以按任务卡算。
+    """
+    tasks = [t for t in (_payload(artifacts, "dev_task_list").get("tasks") or []) if isinstance(t, dict)]
+    if not tasks:
+        return {}
+    titles = _feature_titles(artifacts)
+    columns = [str(t.get("task_id")) for t in tasks]
+    order: list[str] = []
+    for task in tasks:
+        for fid in task.get("feature_refs") or []:
+            if str(fid) not in order:
+                order.append(str(fid))
+    rows = []
+    for fid in order:
+        covered = [str(t.get("task_id")) for t in tasks if fid in [str(x) for x in (t.get("feature_refs") or [])]]
+        rows.append({
+            "source_type": "feature",
+            "source_id": fid,
+            "title": titles.get(fid, ""),
+            "covered_by": covered,
+            "status": "covered" if covered else "gap",
+        })
+    gap_count = sum(1 for r in rows if not r["covered_by"])
+    return {
+        "rows": rows,
+        "columns": columns,
+        "gap_count": gap_count,
+        "coverage_rate": round((len(rows) - gap_count) / len(rows), 3) if rows else 0.0,
+    }
+
+
 def render(window: ReplayWindow, artifacts: dict, width: float = 1180) -> tuple[str, float]:
-    coverage = _coverage_of(artifacts)
+    # 优先用任务卡现算（列 = 任务），算不出来再退回引擎产的 coverage_matrix
+    coverage = _matrix_from_tasks(artifacts) or _coverage_of(artifacts)
     rows = coverage.get("rows") or []
     columns = coverage.get("columns") or []
     gap_count = int(coverage.get("gap_count") or 0)
@@ -46,7 +104,7 @@ def render(window: ReplayWindow, artifacts: dict, width: float = 1180) -> tuple[
 
     if not rows:
         return (
-            "".join([svg.text(8, 28, "未读到覆盖矩阵（task_coverage）", size=11, fill=INK_FAINT)]),
+            "".join([svg.text(8, 28, "未读到覆盖矩阵（coverage_matrix / dev_task_list）", size=11, fill=INK_FAINT)]),
             60,
         )
 

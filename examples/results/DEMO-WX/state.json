@@ -1,0 +1,98 @@
+{
+  "run_id": "DEMO-WX",
+  "status": "frozen",
+  "phase": "BASELINE_FROZEN",
+  "round_index": 1,
+  "artifacts_index": {
+    "baseline": "artifacts/baseline.json",
+    "confirmation_sheet": "artifacts/confirmation_sheet.json",
+    "conflict_register": "artifacts/conflict_register.json",
+    "convocation_table": "artifacts/convocation_table.json",
+    "coverage_matrix": "artifacts/coverage_matrix.json",
+    "dev_task_list": "artifacts/dev_task_list.json",
+    "discussion_minutes": "artifacts/discussion_minutes.json",
+    "idea_card": "artifacts/idea_card.json",
+    "opinion_handling": "artifacts/opinion_handling.json",
+    "problem_list": "artifacts/problem_list.json",
+    "requirement_spec": "artifacts/requirement_spec.json",
+    "review_sheet": "artifacts/review_sheet.json",
+    "schedule": "artifacts/schedule.json",
+    "solution_comparison": "artifacts/solution_comparison.json",
+    "solutions": "artifacts/solutions.json"
+  },
+  "ledger": {
+    "global_limit": 30,
+    "global_used": 20,
+    "per_stage_limit": {
+      "P1": 0,
+      "P2": 4,
+      "P3": 12,
+      "P4": 6,
+      "P5": 8,
+      "P6": 4,
+      "P7": 2
+    },
+    "per_stage_used": {
+      "P1": 0,
+      "P2": 3,
+      "P3": 4,
+      "P4": 4,
+      "P5": 5,
+      "P6": 3,
+      "P7": 1
+    },
+    "rounds": {},
+    "rework_count": 0,
+    "p5_revision_count": 0
+  },
+  "constraints": [],
+  "last_gate_verdict": {
+    "gate_id": "G_P7_BASELINE",
+    "from": "P7",
+    "to": "BASELINE_FROZEN",
+    "action": "freeze",
+    "reason": "baseline_signed",
+    "checks": [
+      {
+        "fn": "human_signed",
+        "result": true,
+        "detail": {
+          "action": "sign",
+          "consumed": false
+        }
+      },
+      {
+        "fn": "baseline_frozen",
+        "result": true,
+        "detail": {
+          "frozen": true,
+          "version": "v1.0"
+        }
+      }
+    ],
+    "transition": {
+      "type": "freeze",
+      "reason": "baseline_signed"
+    },
+    "evaluated_at": "2026-11-24T10:08:06+08:00"
+  },
+  "human_decisions": [
+    {
+      "decision_id": "HD-001",
+      "run_id": "DEMO-WX",
+      "at_phase": "HUMAN_GATE",
+      "action": "sign",
+      "reason": "",
+      "payload_ref": "",
+      "decided_by": "script",
+      "decided_at": "2026-11-24T10:08:06+08:00",
+      "consumed": true
+    }
+  ],
+  "guard_signals": [],
+  "pending": {},
+  "termination_reason": "baseline_signed",
+  "updated_at": "2026-11-24T10:13:21+08:00",
+  "commands": [],
+  "parent_run_id": null
+}
