@@ -229,3 +229,10 @@ evaluate_user_value 输入 design_spec 与 dev_task_list。任务沿用全组 ta
 embedding 尚未接入，仍明确按字面检测降级。C/E 对讨论结果的消费及全系统 P1–P7 运行不由 B 的局部验收代替。
 
 向仓库提交 src/agents/ 的代码、配置、模板、examples、tests 和本说明，以及 docs/role-discussion.md。不要提交 __pycache__、*.pyc、runs、密钥。独立输出样例不证明六模块已经联调。
+
+
+## 作业 2 W4 与作业 3 智能体证据链
+
+新增四角色请求隔离快照、投票矩阵、会议摘要、冲突原话引用、插嘴信号与脱敏导出。交付清单、真实调用命令和 A/E/D/C 接口见 [DELIVERY-W4.md](DELIVERY-W4.md)。离线验收包位于 `examples/results/B-OFFLINE-W4-20261124/`，明确不作为真实模型运行证明。
+
+2026-11-24 的真实 W4 交付包为 `examples/results/B-REAL-BOUNDARY-20261124-recovered/`，已通过只读复验。包内 `运行记录.md` 可直接阅读；`acceptance.json`、`discussion_minutes.json`、`conflict_register.json` 和 `agent_signals.json` 可核对原始票型、隔离快照与冲突原话。真实讨论仍可能有未决分歧，本交付不代替 D/人工裁决或全组端到端验收。

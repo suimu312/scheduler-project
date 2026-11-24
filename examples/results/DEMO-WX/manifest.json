@@ -1,0 +1,25 @@
+{
+  "run_id": "DEMO-WX",
+  "exported_at": "2026-11-24T10:13:21+08:00",
+  "source": "mock happy flow（离线桩，未调真实模型）",
+  "status": "frozen",
+  "baseline_ref": "baseline:v1.0",
+  "artifact_count": 15,
+  "artifacts": [
+    "baseline",
+    "confirmation_sheet",
+    "conflict_register",
+    "convocation_table",
+    "coverage_matrix",
+    "dev_task_list",
+    "discussion_minutes",
+    "idea_card",
+    "opinion_handling",
+    "problem_list",
+    "requirement_spec",
+    "review_sheet",
+    "schedule",
+    "solution_comparison",
+    "solutions"
+  ]
+}

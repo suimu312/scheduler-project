@@ -26,7 +26,15 @@ from .contracts import (
     make_error,
     make_event,
 )
-from .models import Challenge, Conflict, ScoreSheet, Stance, canon_dim, canon_position
+from .models import (
+    DIM_SCORER,
+    Challenge,
+    Conflict,
+    ScoreSheet,
+    Stance,
+    canon_dim,
+    canon_position,
+)
 from .rules import (
     DIM_WEIGHTS,
     PASS_TOTAL,
@@ -34,11 +42,15 @@ from .rules import (
     VOTE_WEIGHT,
     adjudicate,
     canon_scores,
+    challenges_from_findings,
     detect_conflicts,
     find_veto_items,
     gate,
+    oversize_items_from_rows,
     review,
+    review_scope,
     route_rework,
+    score_from_artifacts,
     stddev,
     triage_challenges,
     validate_challenge,
@@ -81,6 +93,12 @@ __all__ = [
     "gate",
     "route_rework",
     "review",
+    # 评审依据（P5 从产物算分）
+    "review_scope",
+    "oversize_items_from_rows",
+    "score_from_artifacts",
+    "challenges_from_findings",
+    "DIM_SCORER",
     "DIM_WEIGHTS",
     "VOTE_WEIGHT",
     "PASS_TOTAL",

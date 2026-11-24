@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""12 条断言，覆盖 D 模块的四类判定。
+"""15 条断言，覆盖 D 模块的四类判定。
 
     1-4   基础规则：证据优先 / 加权投票 / 挂起 / 归一化打分（旧用例，语义不变）
     5     字段兼容：B 的 FOR + claim + source_refs 能不能直接被吃进去
@@ -7,6 +7,8 @@
     8-9   否决项：依赖成环 / 无验收 / 超 3 人天
     10    回炉分流：方案层退 P4、需求层退 P3、超限交人
     11-12 集成：run(ctx) 在 P3 / P5 各跑一遍，产物带 meta 且形状能被 A 的门禁读
+    13-15 评审依据：只给 flow.yaml 声明的输入也要出结论 / 方案层估时离谱要拦 /
+          有任务卡时按卡判（不看方案层估算，避免两套标准）
 
 运行： python test_rules.py
 """
@@ -26,6 +28,7 @@ from conflict_review import (  # noqa: E402
     review,
     route_rework,
     run,
+    score_from_artifacts,
     stddev,
     triage_challenges,
     validate_challenge,
@@ -229,14 +232,114 @@ def test_run_p5():
     assert codes == ["dep_cycle", "no_acceptance", "oversize"], codes
     assert sheet["pass"] is False, sheet
     assert sheet["rework_target"] == "P4", sheet["rework_target"]
-    # 只有一条质疑合格，另一条被四要素拦下
-    assert len(sheet["challenges"]) == 1, sheet["challenges"]
-    assert sheet["challenges"][0]["challenge_id"] == "CHG-001", sheet["challenges"]
 
-    # 空转：没有打分输入时必须 blocked，而不是假装通过
+    # 手写质疑里只有一条合格，另一条（"整体感觉不太好"）被四要素拦下
+    ids = [c["challenge_id"] for c in sheet["challenges"]]
+    assert "CHG-001" in ids, ids
+    assert "CHG-002" not in ids, ids
+    # 有手写质疑不等于可以闭嘴：否决项本身也要翻成质疑（编号 CHG-R###）
+    auto = [c for c in sheet["challenges"] if c["challenge_id"].startswith("CHG-R")]
+    assert {c["impact_ref"] for c in auto} >= {"TASK-0001", "TASK-0003"}, auto
+
+    # 空转：既没有分、也没有产物可算时必须 blocked，而不是假装通过
     blocked = run({"run_id": "R1", "stage": "P5", "artifacts": {}, "config": {}})
     assert blocked.status == "blocked", blocked.status
     assert blocked.error_codes() == ["E_ARTIFACT_MISSING"], blocked.errors
+
+
+# ---------------------------------------------------------------- 评审依据（产物驱动）
+
+def _comparison(count=3, cost=lambda i: float(i), adopt=None):
+    """造一份 P4 的 solution_comparison：count 个功能点，三套方案的估时由 cost(i) 给。"""
+    feats = [{"feature_id": "FEA-%03d" % i, "title": "功能点 %d" % i}
+             for i in range(1, count + 1)]
+    rows = []
+    for i, feat in enumerate(feats, start=1):
+        rows.append({
+            "feature_id": feat["feature_id"],
+            "options": {
+                "SOL_A": {"description": "复用开源组件", "cost_estimate": cost(i), "risk": "low"},
+                "SOL_B": {"description": "自研", "cost_estimate": cost(i) * 2, "risk": "medium"},
+                "SOL_C": {"description": "可扩展中台", "cost_estimate": cost(i) * 4, "risk": "high"},
+            },
+            "adopted": {"solution_id": (adopt or {}).get(feat["feature_id"], "SOL_A")},
+        })
+    return {"feature_items": feats, "rows": rows}
+
+
+def test_p5_from_flow_inputs():
+    """只给 flow.yaml 声明的两个输入也要出结论，不能 blocked。
+
+    真实链路就是这样：P5 拿不到 review_input，dev_task_list 要到 P6 才产出。
+    以前这里直接 blocked，评审环节等于没干活；现在按产物算分，并如实标注哪一维没算。
+    """
+    result = run({
+        "run_id": "R-P5",
+        "stage": "P5",
+        "artifacts": {
+            "solution_comparison": _comparison(3),
+            "conflict_register": {"conflicts": [], "open_count": 0},
+        },
+        "config": {},
+    })
+    assert result.status == "ok", result.errors
+    sheet = result.artifacts["review_sheet"]["data"]
+
+    assert sheet["score_origin"] == "derived", sheet["score_origin"]
+    dims = {d["dimension"]: d["score"] for d in sheet["scores"]}
+    assert sorted(dims) == ["completeness", "feasibility", "risk"], dims
+    assert dims["completeness"] == 100.0, dims
+    assert sheet["weighted_total"] > 0, sheet
+
+    # 算不出来的维度要写明原因，不补 0、不假装评过
+    assert [u["dimension"] for u in sheet["unavailable"]] == ["testability"], sheet["unavailable"]
+    # 评审单要能回答「你审了什么」
+    scope = sheet["reviewed_scope"]
+    assert scope["feature_count"] == 3 and scope["adopted_count"] == 3, scope
+    assert scope["solution_ids"] == ["SOL_A"] and scope["task_count"] == 0, scope
+    # 每一维都要带依据，不能只给一个数
+    assert all(sheet["evidence"].get(d) for d in dims), sheet["evidence"]
+    # 打分人按角色分派，不再是四维全记 A2
+    assert {d["scorer"] for d in sheet["scores"]} == {"A2", "A3", "A4"}, sheet["scores"]
+    assert any(g.signal == "review_blind_spot" for g in result.guard_signals), result.guard_signals
+
+
+def test_oversize_from_rows_blocks():
+    """方案层估时离谱（单功能 12 人天 = 单卡上限 4 倍）时，没有任务卡也要拦下来。"""
+    result = run({
+        "run_id": "R-P5b",
+        "stage": "P5",
+        "artifacts": {"solution_comparison": _comparison(2, cost=lambda i: 12.0)},
+        "config": {},
+    })
+    sheet = result.artifacts["review_sheet"]["data"]
+    codes = [i["code"] for i in sheet["veto_items"]]
+    assert codes == ["oversize", "oversize"], codes
+
+    item = sheet["veto_items"][0]
+    assert item["feature_id"] == "FEA-001", item
+    assert item["limit_days"] == 9.0, item          # MAX_TASK_DAYS 3 × ADVISORY_FACTOR 3
+    # 判据来自方案层就老实写清楚，别让人以为是任务卡
+    assert item["source"] == "solution_comparison.adopted.cost_estimate", item
+    assert sheet["veto"] is True and sheet["pass"] is False, sheet
+    assert sheet["rework_target"] == "P4", sheet
+
+
+def test_tasks_take_precedence():
+    """同一个方案，补上任务卡后就按卡判：卡不超限，就不再有 oversize —— 不能两套标准并存。"""
+    finding = score_from_artifacts(
+        _comparison(2, cost=lambda i: 12.0),
+        [
+            {"task_id": "TASK-0001", "depends_on": [], "estimate_days": 2,
+             "acceptance": ["列表页按创建时间倒序"]},
+            {"task_id": "TASK-0002", "depends_on": ["TASK-0001"], "estimate_days": 2,
+             "acceptance": ["导出文件含表头"]},
+        ],
+    )
+    assert finding["veto_items"] == [], finding["veto_items"]
+    assert sorted(finding["scores"]) == ["completeness", "feasibility", "risk", "testability"], finding
+    assert finding["unavailable"] == [], finding["unavailable"]
+    assert finding["scope"]["task_count"] == 2, finding["scope"]
 
 
 if __name__ == "__main__":

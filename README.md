@@ -112,15 +112,20 @@ python -m req_builder.viz --run-root runs --run-ids REAL,VIZREAL
 # 或自动扫描 runs/ 下所有含 events.jsonl 的运行目录
 python -m req_builder.viz --run-root runs --all-runs
 
-# 自定义输出路径
-python -m req_builder.viz --run-root runs --all-runs --out runs/all.html
+# 4. 自检（20 条验收用例）
+python -m src.scheduler.selfcheck
+
+# 5. 服务端命令：pause 暂停 / comment 批注 / retry_task 单卡重试（fork 出新运行并排对比）
+python -m src.scheduler.cli command --run-id DEMO --action pause --note "先停在这里核对"
+python -m src.scheduler.cli command --run-id DEMO --action retry_task --task DEV-001 --note "这张卡重做"
+
+# 6. 验收探针：核对越过 P2、model.call 事件与产物、spans 追踪链、命令成对与 fork 血缘
+python tools/probe.py DEMO
 ```
 
-默认输出 `runs/index.html`。打开后顶部下拉框切换运行实例；每组运行仍显示原来的完整七视图，并各自保留独立的进度条回放能力。页面自包含、断网可看。
+离线 happy flow 的固化快照在 `examples/results/DEMO-WX/`：克隆后不用跑命令即可数出 15 个阶段产物 JSON；重新生成快照用 `python tools/export_results.py`。
 
-F 的 [`examples/results/compare.html`](examples/results/compare.html) 是跨 run 的数字对比页：指标直接读 `state.json`、`artifacts/*.json`、`events.jsonl`，列出两组运行的产物数、任务数、工期、覆盖率、模型调用与基线状态，并可点开每个 JSON。生成命令见上一节最后一行；重跑会覆盖同名文件。
-
-各模块单独验证：
+各模块与可视化：
 
 ```bash
 export PYTHONPATH=.:src
@@ -134,6 +139,16 @@ python -m src.scheduler.cli selfcheck               # A：17 条编排器用例
 Windows PowerShell：先 `$env:PYTHONPATH=".;src"; $env:PYTHONIOENCODING="utf-8"`，命令同上。
 
 依赖：Python 3.10+、PyYAML（编排器读取 `flow.yaml` / `gate_rule.yaml` 用）。
+
+### 接真实模型
+
+离线桩默认不联网；接真实模型先配置环境变量（二选一）：`ARK_API_KEY` / `ARK_MODEL`（可选 `ARK_BASE_URL`），或 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`，然后：
+
+```bash
+python -m src.scheduler.cli start --run-id REALD --design-spec examples/design_spec_wechat.json --provider real --llm-provider ark
+python -m src.scheduler.cli run --run-id REALD
+python tools/probe.py REALD   # 核对越过 P2、model.call 事件与对应产物
+```
 
 ## 协作约定
 

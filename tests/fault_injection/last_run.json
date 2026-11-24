@@ -1,0 +1,104 @@
+{
+  "run": "C:\\Users\\17763\\Desktop\\软件工程与项目实践\\scheduler-project\\examples\\results\\DEMO-WX",
+  "baseline": {
+    "gap_count": 15,
+    "uncovered_count": 3,
+    "coverage_rate": 0.7,
+    "cycle": [],
+    "signals": []
+  },
+  "summary": {
+    "injected": 5,
+    "detected": 5,
+    "hit_rate": 1.0,
+    "false_positives": 0,
+    "max_cost_ms": 0.5
+  },
+  "results": [
+    {
+      "case": "FI-01",
+      "detected": true,
+      "signal": "OBS-04 依赖成环",
+      "detail": "环 2 张：DEV-001 → DEV-002 → DEV-001（find_cycle 另把下游 6 张也算进环里）",
+      "cost_ms": 0.5,
+      "false_positive": false,
+      "injection": "DEV-001 → DEV-002（原方向 DEV-002 → DEV-001）"
+    },
+    {
+      "case": "FI-02",
+      "detected": true,
+      "signal": "OBS-01 预算余量",
+      "detail": "该轮末尾 16/17，余量 5.9% → warn；再跑一轮 17/17，余量 0.0% → block",
+      "cost_ms": 0.1,
+      "false_positive": false,
+      "stages": [
+        {
+          "at": "该轮末尾",
+          "level": "warn",
+          "headroom": 0.0588
+        },
+        {
+          "at": "再跑一轮",
+          "level": "block",
+          "headroom": 0.0
+        }
+      ],
+      "injection": "把 global_limit 从 30 压到 17（已用 16），再模拟跑一轮"
+    },
+    {
+      "case": "FI-03",
+      "detected": true,
+      "signal": "OBS-03 单卡重试超限",
+      "detail": "超限任务 DEV-001（5 次调用，retry=4）",
+      "cost_ms": 0.2,
+      "false_positive": false,
+      "retry_hits": [
+        {
+          "task_id": "DEV-001",
+          "model_calls": 5,
+          "retry": 4,
+          "state": "unfinished"
+        }
+      ],
+      "injection": "DEV-001 连发 5 次调用且始终未完成（retry=4）；DEV-002 3 次后完成（retry=2，应当不报）"
+    },
+    {
+      "case": "FI-04",
+      "detected": true,
+      "signal": "OBS-08 覆盖空缺",
+      "detail": "缺失来源 CON-001, CON-002, CON-003, FEA-001",
+      "cost_ms": 0.4,
+      "false_positive": false,
+      "gap_delta": 1,
+      "injection": "删除 DEV-001, DEV-003, DEV-007, DEV-008，使 solution_comparison:FEA-001 无人承接"
+    },
+    {
+      "case": "FI-05",
+      "detected": true,
+      "signal": "OBS-06 发言趋同",
+      "detail": "4 条发言判无效：A2↔A3 1.00、A1↔A4 1.00（阈值 0.85）",
+      "cost_ms": 0.1,
+      "false_positive": false,
+      "pairs": [
+        {
+          "pair": [
+            "A2",
+            "A3"
+          ],
+          "score": 1.0,
+          "degraded": true
+        },
+        {
+          "pair": [
+            "A1",
+            "A4"
+          ],
+          "score": 1.0,
+          "degraded": true
+        }
+      ],
+      "similarity_mode": "lexical_degraded",
+      "injection": "把 A4 的发言改成与 A1 完全相同、A3 改成与 A2 完全相同"
+    }
+  ]
+}

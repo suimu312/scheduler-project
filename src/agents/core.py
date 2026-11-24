@@ -266,6 +266,7 @@ def run_discussion(ctx, model=None, embedder=None):
 
     def invoke(jobs):
         nonlocal attempts, usage
+        from .agent_signals import prompt_snapshot
         pending = []
         for aid, prompt in jobs:
             if attempts >= limit:
@@ -273,6 +274,7 @@ def run_discussion(ctx, model=None, embedder=None):
                 continue
             attempts += 1
             pending.append((aid, prompt))
+            minutes["extensions"].setdefault("prompt_snapshots", []).append(prompt_snapshot(prompt))
         def call(job):
             aid, prompt = job
             try:
@@ -412,6 +414,8 @@ def run_discussion(ctx, model=None, embedder=None):
         minutes["completed_steps"].append(step)
     minutes["extensions"]["similarity_mode"] = "embedding_and_lexical" if embedder and not any(r["degraded"] for r in minutes["similarity_reports"]) else "lexical_degraded"
     minutes["extensions"]["model_attempts_this_step"] = attempts
+    from .agent_signals import enrich_minutes
+    minutes = enrich_minutes(minutes)
     return result({"discussion_minutes": artifact(ctx["run_id"], "P3", "discussion_minutes", minutes),
                    "guard_signals": artifact(ctx["run_id"], "P3", "guard_signals", {"items": minutes["guard_signals"]})}, events, usage)
 

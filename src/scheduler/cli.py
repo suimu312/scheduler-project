@@ -27,8 +27,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUN_ROOT = REPO_ROOT / "runs"
 
 from . import mocks  # noqa: E402
+from .commands import COMMAND_ACTIONS, apply_command, issue_command  # noqa: E402
 from .context import RunConfig, RunState, now_iso  # noqa: E402
-from .events import replay as replay_events  # noqa: E402
+from .events import EventEmitter, replay as replay_events  # noqa: E402
 from .human_gate import apply_human_decision, resolve_after_decision  # noqa: E402
 from .statemachine import ConfigError, Runtime  # noqa: E402
 from .store import RunStore  # noqa: E402
@@ -194,6 +195,44 @@ def cmd_human(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_command(args: argparse.Namespace) -> int:
+    """服务端命令：pause / comment / retry_task，issued 与 applied 成对落事件。"""
+    run_root = Path(args.run_root)
+    cfg = _load_config(args.run_id, run_root)
+    store = RunStore(run_root)
+    state = store.load_state(args.run_id)
+    if state is None:
+        raise SystemExit(f"运行实例 {args.run_id} 不存在")
+
+    cmd = issue_command(
+        state,
+        args.action,
+        target=args.task or "",
+        note=args.note or "",
+        by=args.by,
+    )
+    emitter = EventEmitter(store, args.run_id, state.ledger.global_used)
+    emitter.emit(
+        "command.issued",
+        stage=state.phase,
+        actor=args.by,
+        payload_ref=args.action,
+        detail={"command_id": cmd["command_id"], "target": cmd["target"], "note": cmd["note"]},
+    )
+    effect = apply_command(store, cfg, state, cmd)
+    store.save_state(state)
+    emitter.emit(
+        "command.applied",
+        stage=state.phase,
+        actor="scheduler",
+        payload_ref=args.action,
+        detail={"command_id": cmd["command_id"], "effect": effect},
+    )
+    hint = "retry_task 已 fork 新运行，用 resume --run-id <fork_run_id> 继续" if cmd["fork_run_id"] else "执行 resume 继续"
+    print(_dump({"command": cmd, "effect": effect, "hint": hint}))
+    return 0
+
+
 def cmd_resume(args: argparse.Namespace) -> int:
     args.scenario = getattr(args, "scenario", None)
     return cmd_run(args)
@@ -261,8 +300,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--run-id", default=f"R{now_iso()[:10].replace('-', '')}")
     s.add_argument("--author", default="user")
     s.add_argument("--provider", default="mock", choices=["mock", "real"])
-    s.add_argument("--llm-provider", default="offline", choices=["offline", "agents"],
-                   help="模型来源：offline 不联网；agents 用 src/agents/providers.HttpModel")
+    s.add_argument("--llm-provider", default="offline", choices=["offline", "agents", "ark"],
+                   help="模型来源：offline 不联网；agents 用 B 的 HttpModel；ark 用 Chat Completions（ARK/LLM_* 环境变量）")
     s.add_argument("--llm-endpoint", default=None, help="模型网关地址（等价 B_MODEL_ENDPOINT）")
     s.add_argument("--llm-token", default=None, help="模型网关 token（等价 B_MODEL_TOKEN）")
     s.add_argument("--budget", type=int, default=None, help="全局 LLM 调用上限，默认 30")
@@ -287,6 +326,14 @@ def build_parser() -> argparse.ArgumentParser:
     h.add_argument("--payload", default="")
     h.add_argument("--by", default="user")
     h.set_defaults(func=cmd_human)
+
+    c = sub.add_parser("command", help="服务端命令：pause / comment / retry_task")
+    c.add_argument("--run-id", required=True)
+    c.add_argument("--action", required=True, choices=list(COMMAND_ACTIONS))
+    c.add_argument("--task", default="", help="retry_task 时指定被重试的任务号")
+    c.add_argument("--note", default="")
+    c.add_argument("--by", default="user")
+    c.set_defaults(func=cmd_command)
 
     rs = sub.add_parser("resume", help="人为动作后继续跑")
     rs.add_argument("--run-id", required=True)

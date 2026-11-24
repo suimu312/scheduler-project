@@ -19,6 +19,10 @@ def remaining(ctx):
 def to_scheduler(ctx, raw, status="ok", errors=None):
     from src.scheduler.context import GuardSignal, RunEvent, StageResult, make_artifact, now_iso
     arts = {name: make_artifact(copy.deepcopy(value["data"]), ctx.run_id, ctx.stage, "agents", copy.deepcopy(value.get("extensions", {}))) for name, value in raw.get("artifacts", {}).items()}
+    if "discussion_minutes" in arts:
+        from .agent_signals import build_signals, redact
+        arts["agent_signals"] = make_artifact(build_signals(arts["discussion_minutes"]["data"], run_id=ctx.run_id), ctx.run_id, ctx.stage, "agents")
+        arts = redact(arts)
     events = [RunEvent(event_id="", run_id=ctx.run_id, ts=now_iso(), stage=ctx.stage,
                        event_type=e["type"], actor=e["payload"].get("agent_id", "agents"),
                        payload_ref=("conflict_register:" if e["payload"].get("agent_id") == "conflict_review" else "discussion_minutes:") + e["payload"]["id"] if e["payload"].get("id") else "guard_signals")

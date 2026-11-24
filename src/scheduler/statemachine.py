@@ -29,6 +29,7 @@ from .flow_loader import Flow, load_agent_config, load_flow, resolve_asset, vali
 from .gate_rule import GateEvaluator, RuleSet, load_rules, load_rules_dict
 from .llm_gateway import LLMGateway, make_provider
 from .modules import resolve as resolve_module
+from .obs import SpanRecorder
 from .store import RunStore
 
 
@@ -60,6 +61,38 @@ class Runtime:
         except ValueError as exc:
             raise ConfigError([f"E_CONFIG: {exc}"]) from exc
         self.gateway = LLMGateway(provider, name=config.llm_provider)
+        self.recorder = SpanRecorder(self.store, config.run_id)
+        self._stage_span: str | None = None
+        self._emitter: EventEmitter | None = None
+        self.gateway.on_call = self._on_model_call
+
+    def _on_model_call(self, agent_id: str, stage: str, ok: bool, latency_ms: float, error: str | None) -> None:
+        """模型调用观测出口：model.call 事件进 events.jsonl，model span 进 spans.jsonl。"""
+        status = "ok" if ok else "error"
+        detail = {
+            "agent_id": agent_id,
+            "stage": stage,
+            "provider": self.gateway.name,
+            "latency_ms": latency_ms,
+            "ok": ok,
+            "error": error,
+        }
+        if self._emitter is not None:
+            self._emitter.emit(
+                "model.call",
+                stage=stage,
+                actor=agent_id,
+                payload_ref=f"{self.gateway.name}:{status}",
+                detail=detail,
+            )
+        span_id = self.recorder.start(
+            "model",
+            f"model:{agent_id}",
+            stage,
+            parent_id=self._stage_span,
+            refs={"agent_id": agent_id, "provider": self.gateway.name},
+        )
+        self.recorder.end(span_id, status=status, detail=detail)
 
     def set_provider(self, provider: Any, name: str | None = None) -> None:
         """换模型只注入这里：流程代码、闸门、预算口径都不动。"""
@@ -120,6 +153,7 @@ class Runtime:
 
         spec = self.flow.stage(phase)
         emitter = EventEmitter(self.store, state.run_id, state.ledger.global_used)
+        self._emitter = emitter
 
         # 单阶段预算用超 → 本阶段停机，交人工（不中断整轮，§7.2）
         if state.ledger.stage_exhausted(phase):
@@ -167,7 +201,15 @@ class Runtime:
             return {"action": "abort", "reason": "error"}
 
         # 落盘 + 索引
+        art_span = self.recorder.start(
+            "artifact",
+            f"artifact:write:{phase}",
+            phase,
+            parent_id=self._stage_span,
+            refs={"artifacts": sorted(result.artifacts.keys())},
+        )
         index = self.store.write_artifacts(state.run_id, result.artifacts)
+        self.recorder.end(art_span, detail={"artifacts": sorted(result.artifacts.keys())})
         state.artifacts_index.update(index)
 
         if "schedule" in pre_artifacts:
@@ -198,7 +240,9 @@ class Runtime:
             return {"action": "wait_human", "reason": result.status}
 
         # 闸门求值 + 状态转移
+        gate_span = self.recorder.start("gate", f"gate:{phase}", phase, parent_id=self._stage_span)
         verdict = self.evaluate(state)
+        self.recorder.end(gate_span, detail={"gate_id": verdict.get("gate_id", ""), "action": verdict.get("action", "")})
         self.apply_transition(state, verdict)
         emitter.emit("gate.evaluated", stage=phase, actor="scheduler", payload_ref=verdict.get("gate_id", ""))
         emitter.emit("stage.exit", stage=phase, actor="scheduler", payload_ref=verdict.get("action", ""))
@@ -462,7 +506,13 @@ class Runtime:
                 return self.finalize(state, "error")
 
             self.store.save_state(state)
-            self.step(state)
+            stage_span = self.recorder.start("stage", f"stage:{state.phase}", state.phase)
+            self._stage_span = stage_span
+            try:
+                self.step(state)
+            finally:
+                self.recorder.end(stage_span)
+                self._stage_span = None
             self.store.save_state(state)
             steps += 1
 
@@ -480,6 +530,7 @@ class Runtime:
         self.store.save_state(state)
         emitter = EventEmitter(self.store, state.run_id, state.ledger.global_used)
         emitter.emit("run.terminated", stage=state.phase, actor="scheduler", payload_ref=str(reason or state.status))
+        self.recorder.flush_pending()
 
         baseline = self.store.load_artifact(state.run_id, "baseline", state.artifacts_index) or {}
         baseline_ref = ""

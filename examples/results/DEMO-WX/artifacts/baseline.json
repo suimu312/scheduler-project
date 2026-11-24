@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO-WX",
+    "stage": "P7",
+    "produced_by": "baseline_mgr",
+    "created_at": "2026-11-24T10:08:06+08:00"
+  },
+  "data": {
+    "version": "v1.0",
+    "requirement_ids": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003"
+    ],
+    "task_ids": [
+      "DEV-001",
+      "DEV-002",
+      "DEV-003",
+      "DEV-004",
+      "DEV-005",
+      "DEV-006",
+      "DEV-007",
+      "DEV-008"
+    ],
+    "schedule_ref": "schedule:W5",
+    "total_days": 12.0,
+    "critical_path": [
+      "DEV-001",
+      "DEV-002",
+      "DEV-004",
+      "DEV-007",
+      "DEV-008"
+    ],
+    "signed_by": "user",
+    "signed_at": "2026-11-24T10:08:06+08:00",
+    "frozen": true
+  },
+  "extensions": {}
+}

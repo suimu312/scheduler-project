@@ -25,7 +25,7 @@
 |---|---|---|---|---|
 | ① 支持陈述 | A1、A5 | 每条功能项给理由与影响面 | 支持意见 | 是 |
 | ② 反方质疑 | A4 | 按四要素提质疑，缺一即无效 | `ReviewOpinion` | 是 |
-| ③ 五维打分 | A2/A3/A4/A5 | 各自只打自己那一维，互不可见 | `ScoreCard` | 是 |
+| ③ 四维打分 | A2/A3/A4/A5 | 各自只打自己那一维，互不可见；成本另出一张估算卡，只估算不计分（共 5 张分卡、4 维计分） | `ScoreCard` | 是 |
 | ④ 门禁判定 | 本模块（代码，不调模型） | 算加权分、标准差、阻断项 | `GateResult(G4)` | — |
 
 **A1 在 ③ 缺席**：方案是它写的，作者不评自己的作品——这条和真实评审会的做法一致，也和上次方案里"产品经理在 P5 退场"是同一件事。
@@ -174,6 +174,52 @@ pass = weighted >= 80
 
 注意它和"人对意见的采纳"不是一回事：P5 阶段人不参与打分，只在 L3 挂起时裁一条。所以降权判的是"这个角色提的质疑反复站不住"，不是"人不同意它"。
 
+### 3.6 没有现成分数时怎么评（评审依据从产物来）
+
+这一节回答的是「评审结果从哪来」。原设计默认有上游把四维分喂进来，可对照 `flow.yaml` 就会发现两个事实：
+
+- P5 的 `input_artifacts` 只有 `solution_comparison` + `conflict_register`，**任务卡 `dev_task_list` 要到 P6 才产出**；
+- 全仓库没有任何一处生产 `review_input.scores`，`cli.py` 也没有这个入口。
+
+于是真实链路上 P5 只会 `blocked`，评审环节等于没干活——这正是"环节 D 没给出评审结果"的根因。改法不是补一个假分数，而是**把分从产物里算出来**。
+
+**取分三级优先**：`config.review.scores`（联调用）→ `review_input` 产物 → **按产物自己算**。三条都没有才 `blocked`，且此时说明的是"产物不可读"，不再是"没人喂分"。
+
+四维的算法全部可复算、可写在报告里：
+
+| 维度（权重） | 有任务卡时 | 只有方案层时（P5 的常态） |
+|---|---|---|
+| 完整性 25 | 已采纳方案的功能数 ÷ 功能总数 ×100 | 同左（都从 `feature_items` / `rows` 清点，与有无任务卡无关） |
+| 可行性 25 | 单卡 >3 人天 → `100 − 25×超限张数` | 被采纳方案估算 ≥9 人天（单卡上限 ×3）→ `100 − 20×个数`；一条估算都没有则记未评 |
+| 风险 25 | `100 − 10×max(0, 依赖层数−4) − 8×悬空引用 − 25×有环` | `100 − 方案总成本离散(0/8/15) − 6×跨方案拼装 − 12×未收敛冲突` |
+| 可测试性 15 | 有验收标准的卡占比 | **不评**——没有任务卡就没有验收标准，硬打分是编数 |
+
+**三条不肯让步的口径**：
+
+1. **算不出来的维度不补分**。记进 `unavailable` 并写明原因，加权总分按实际参与维度的权重和归一（`weighted_total` 本来就除以实际权重和）。给缺失维度补一个 85 分，等于替上游撒谎。
+2. **有分数的维度少于 3 个就不许过闸**（`MIN_SCORED_DIMS = 3`）。否则"只有风险一维 88 分"也能算出总分 88 并放行——那不是评审，是凑数。
+3. **粒度只有两种判据，不并存**。有任务卡就按卡判，没有卡才用方案层估算，且 `veto_items[].source` 写明 `solution_comparison.adopted.cost_estimate`，别让人误以为那是任务卡。
+
+**评审单必须能回答"你审了什么"**：`reviewed_scope` 记录功能点数、已采纳数、未采纳清单、涉及的方案 ID、任务卡数。只有一句"通过了"的评审单，和没审是一样的。
+
+**归因决定去向**（对应 `gate_rule.yaml` 里两道回炉闸）：
+
+| 扫出的问题 | 归到哪层 | 命中闸门 | 退到 |
+|---|---|---|---|
+| 未收敛的冲突（`conflict_register` 里 `suspended`） | 需求层 | `G_P5_REWORK_REQ` | P3 |
+| 估时离谱 / 依赖成环 / 跨方案拼装 | 方案层 | `G_P5_REWORK_SOL` | P4 |
+| 没有硬伤，三阈值全过 | — | `G_P5_P6` | 进 P6 |
+
+规则扫出的硬伤会自动翻成四要素齐全的质疑（编号 `CHG-R###`，R = rule），人写的质疑优先级更高、按 `impact_ref` 去重。这样"提不出意见所以通过"这条路也被堵上了。
+
+**实测三条路径**（用 A 的 mock 跑出的真实 `solution_comparison.json` 作输入，走真实闸门函数）：
+
+| 输入 | 总分 / σ | 命中闸门 | 结果 |
+|---|---|---|---|
+| 原样 | 93.00 / 9.90 | `G_P5_P6` | 放行；`testability` 标注未评，交 P6 复核 |
+| 加一条 `suspended` 冲突 | 89.00 / 15.56 | `G_P5_REWORK_REQ` | 退 P3 |
+| 方案层每个功能估 12 人天 | 78.00 / 26.98 | `G_P5_REWORK_SOL` | 退 P4（附 3 条 `oversize` 否决项） |
+
 ---
 
 ## 4. 失败处理
@@ -183,7 +229,7 @@ pass = weighted >= 80
 | 模型返回格式不符（缺字段、severity 不在枚举内） | 判 `E_INVALID`，允许 1 次重试，仍失败则该条意见作废并记事件，不阻塞评审 |
 | 引用 `target` 指向不存在的条目 | 丢弃该条，记 `E_INVALID` |
 | 三轮评审后仍在挑新毛病 | 停止收集新意见，只对已有意见投票，进裁决 |
-| 五维分数全部相同且都为满分 | 判为异常（疑似未实际评审），要求重打并记事件 |
+| 四维分数全部相同且都为满分 | 判为异常（疑似未实际评审），要求重打并记事件 |
 | 裁决时双方证据都为空 | 直接进三级，不做加权（避免"两个都觉得"互相抵消） |
 | 人长时间不裁决 | 不定时器，保持 SUSPENDED；界面持续高亮 |
 
@@ -208,11 +254,11 @@ pass = weighted >= 80
 |---|---|
 | `contracts.py` | 信封适配层：复刻 `StageContext` / `StageResult` / `RunEvent` / `GuardSignal`，并提供产物 meta 壳 `make_artifact`（字段与 A 的 `validate_artifact` 逐字对齐） |
 | `models.py` | 数据结构 `Stance` / `Conflict` / `Challenge` / `ScoreSheet`，以及字段归一（`claim`↔`proposal`、`source_refs`↔`evidence_refs`、`FOR`↔`for`） |
-| `rules.py` | 七条纯函数：`canon_scores` / `weighted_total` / `stddev` / `gate` / `validate_challenge` / `triage_challenges` / `find_veto_items` / `detect_conflicts` / `adjudicate` / `route_rework` / `review` |
-| `stage.py` | 统一入口 `run(ctx)`：`stage == P3` 走冲突扫描与裁决，`stage == P5` 走四要素校验、打分与回炉分流 |
+| `rules.py` | 纯函数：`canon_scores` / `weighted_total` / `stddev` / `gate` / `validate_challenge` / `triage_challenges` / `find_veto_items` / `detect_conflicts` / `adjudicate` / `route_rework` / `review`；以及评审依据一组 `review_scope` / `oversize_items_from_rows` / `score_from_artifacts` / `challenges_from_findings` |
+| `stage.py` | 统一入口 `run(ctx)`：`stage == P3` 走冲突扫描与裁决，`stage == P5` 走「取分三级优先 → 四要素校验 → 打分 → 回炉分流」 |
 | `sample_input.json` | 一份联调样例：B 真实格式的 9 条立场陈述（覆盖 L1/L2/L3 三种裁决）+ 打分 + 任务清单（含三种否决项） |
-| `demo.py` | 读样例 → P3 裁决 → P5 打分，打印全过程 |
-| `test_rules.py` | 12 条断言：基础规则 4 条、字段兼容 1 条、四要素与驳回率 2 条、否决项 2 条、回炉分流 1 条、`run(ctx)` 集成 2 条 |
+| `demo.py` | 读样例 + 最近一次真实 P4 产物，P5 演两遍：真实链路（分从产物算）与拿到任务卡之后（否决项生效） |
+| `test_rules.py` | 15 条断言：基础规则 4、字段兼容 1、四要素与驳回率 2、否决项 2、回炉分流 1、`run(ctx)` 集成 2、评审依据 3 |
 
 运行方式：`python -m src.conflict_review.demo`（或在该目录下 `python demo.py`）；测试同理 `python test_rules.py`。
 
@@ -254,14 +300,26 @@ data.stats            议题数 / 立场数 / 新登记数 / by_level
 `review_sheet`（仅 P5）：
 
 ```
-data.scores[]         {dimension, scorer, score, reason}，dimension ∈ completeness/feasibility/risk/testability
+data.scores[]         {dimension, scorer, score, weight, reason}，dimension ∈ completeness/feasibility/risk/testability
+                      scorer 按角色分派：A2 完整性 / A3 可行性 / A4 风险 / A5 可测试性（A1 回避）
+                      reason 直接写这一维是怎么算出来的，不是空字符串
 data.weighted_total   百分制（Σ 权重×分 ÷ 90，不再乘 100）
 data.stddev           四维原始分的总体标准差
 data.veto             是否存在否决项
-data.veto_items[]     {code, severity, task_id?, detail}，code ∈ dep_cycle / no_acceptance / oversize
+data.veto_items[]     {code, severity, task_id?, feature_id?, detail, source?}，code ∈ dep_cycle / no_acceptance / oversize
+                      没有任务卡时 oversize 的判据来自方案层估算，source 会写明来源
 data.challenges[]     {challenge_id, description, impact_ref, consequence, severity, category, verdict}
+                      CHG-R### 是规则自动提的（R = rule），其余是人写的
 data.rework_target    P4 | P3 | HUMAN（不通过时的回炉去向，A 的 G_P5_REWORK_* 直接读）
+data.score_origin     explicit（上游给的分）| derived（按产物算的分）
+data.evidence{}       每一维的计算依据
+data.unavailable[]    {dimension, reason} 本次没有分数、为什么（不补分）
+data.reviewed_scope   {feature_count, adopted_count, unadopted_features[], solution_ids[], task_count, basis}
+data.triage           {submit_count, reject_count, reject_rate, guard, rejected[]}
 ```
+
+新增字段都是**追加**，`scores` / `weighted_total` / `stddev` / `veto` / `veto_items` / `challenges` / `rework_target`
+照旧，A 的 `score_pass` 与 `challenge_category_is` 不需要改。
 
 两份产物都走 `make_artifact`，`meta` 五字段齐全（`schema_version` / `run_id` / `stage` / `produced_by` / `created_at`），
 `produced_by` 固定为 `conflict_review`。
@@ -271,3 +329,7 @@ data.rework_target    P4 | P3 | HUMAN（不通过时的回炉去向，A 的 G_P5
 拿 A 分支的 `validate_stage_result`、`gate_check.score_pass`、`challenge_category_is`、`has_escalated_conflict`
 直接验过一遍：P3 / P5 产物校验均无错误，`score_pass` 正确读到 `total=85.5, stddev=5.12, veto=True`，
 `challenge_category_is` 正确按 `category` 分流出 `solution → P4`。
+
+评审依据那套（§3.6）另用 A 的 mock 产物 `runs/*/artifacts/solution_comparison.json` 端到端验过：
+`score_pass → G_P5_P6` 放行、`score_not_pass + challenge_category_is(requirement) → G_P5_REWORK_REQ`、
+`score_not_pass + challenge_category_is(solution) → G_P5_REWORK_SOL`，三条各走各的门，没有一条是"直接往下走"。

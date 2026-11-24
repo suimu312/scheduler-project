@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from typing import Any, Callable, Protocol
 
 # agent_id, prompt, stage -> 文本
@@ -44,6 +45,16 @@ def register_provider(name: str, factory: Callable[[], Provider]) -> None:
 
 def known_providers() -> list[str]:
     return sorted({"offline", "agents", *_PROVIDER_FACTORIES})
+
+
+def _ark_completions_provider(**_kwargs: Any) -> Provider:
+    """接 Chat Completions 真实模型（读 ARK_API_KEY/ARK_MODEL 或 LLM_* 环境变量）。"""
+    from src.agents.providers import ChatCompletionsProvider
+
+    return ChatCompletionsProvider.from_env()
+
+
+register_provider("ark", _ark_completions_provider)
 
 
 def adapt_model(model: Any, *, system: str = "", timeout: int = 120) -> Provider:
@@ -103,25 +114,43 @@ class LLMGateway:
         self.calls = 0
         self.by_stage: dict[str, int] = {}
         self.by_agent: dict[str, int] = {}
+        # 观测回调：on_call(agent_id, stage, ok, latency_ms, error)；由 Runtime 接事件/span
+        self.on_call: Callable[[str, str, bool, float, str | None], None] | None = None
 
     def set_provider(self, provider: Provider, name: str | None = None) -> None:
         self._provider = provider
         if name:
             self.name = name
 
+    def _notify(self, agent_id: str, stage: str, ok: bool, latency_ms: float, error: str | None) -> None:
+        if self.on_call is None:
+            return
+        try:
+            self.on_call(agent_id, stage, ok, latency_ms, error)
+        except Exception:
+            # 观测出口失败不能反过来打断模型调用主链路
+            pass
+
     def call(self, agent_id: str, prompt: str, stage: str) -> str:
+        started = time.perf_counter()
         with self._lock:
             self.calls += 1
             self.by_stage[stage] = self.by_stage.get(stage, 0) + 1
             self.by_agent[agent_id] = self.by_agent.get(agent_id, 0) + 1
         try:
-            return self._provider(agent_id, prompt, stage)
+            reply = self._provider(agent_id, prompt, stage)
+            self._notify(agent_id, stage, True, round((time.perf_counter() - started) * 1000, 2), None)
+            return reply
         except TimeoutError:
             # 与 B 和修订版一致：超时记事件，不扣本次生成调用预算。
             with self._lock:
                 self.calls -= 1
                 self.by_stage[stage] -= 1
                 self.by_agent[agent_id] -= 1
+            self._notify(agent_id, stage, False, round((time.perf_counter() - started) * 1000, 2), "TimeoutError")
+            raise
+        except Exception as exc:
+            self._notify(agent_id, stage, False, round((time.perf_counter() - started) * 1000, 2), f"{type(exc).__name__}: {exc}")
             raise
 
     def stage_calls(self, stage: str) -> int:

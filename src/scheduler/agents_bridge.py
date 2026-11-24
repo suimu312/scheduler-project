@@ -6,6 +6,24 @@ import copy
 from .context import StageResult, make_artifact
 
 
+def finalize_register(minutes, registered):
+    """保留原始立场，按最新原始票型交 D 裁决；也用于超时票的恢复。"""
+    from src.conflict_review import adjudicate
+    votes = {v["agent_id"]: v for v in minutes["votes"]}
+    final = []
+    for conflict in registered:
+        voted = copy.deepcopy(conflict)
+        voted["extensions"] = {"original_stances": copy.deepcopy(conflict["stances"])}
+        for stance in voted["stances"]:
+            vote = votes.get(stance["agent_id"])
+            stance["position"] = {"FOR": "for", "AGAINST": "against", "ABSTAIN": "neutral"}.get(vote["ballot"], "neutral") if vote else "neutral"
+            stance["claim"] = vote["reason"] if vote else "缺席"
+            stance["source_refs"] = vote["source_refs"] if vote else []
+        final.append({**voted, **adjudicate(voted)})
+    return {"conflicts": final, "open_count": sum(c["status"] == "open" for c in final),
+            "escalated_ids": [c["conflict_id"] for c in final if c["status"] in ("suspended", "escalated")]}
+
+
 def run(ctx, gateway=None):
     from src.agents import core
     from src.agents.providers import SchedulerGatewayModel
@@ -48,23 +66,13 @@ def run(ctx, gateway=None):
                                   "extensions": {"issue_id": minutes["issue"]["issue_id"]}})
                 low["artifacts"]["conflict_register"] = make_artifact({"conflicts": registered, "items": items}, ctx.run_id, "P3", "conflict_review")
         minutes = raw["artifacts"]["discussion_minutes"]["data"]
-        votes = {v["agent_id"]: v for v in minutes["votes"]}
-        final = []
-        for conflict in registered:
-            voted = copy.deepcopy(conflict)
-            # D 的规则按 stances 计票；提供投票后的立场，保留原陈述供追溯。
-            voted["extensions"] = {"original_stances": copy.deepcopy(conflict["stances"])}
-            for stance in voted["stances"]:
-                vote = votes.get(stance["agent_id"])
-                stance["position"] = {"FOR": "for", "AGAINST": "against", "ABSTAIN": "neutral"}.get(vote["ballot"], "neutral") if vote else "neutral"
-                stance["claim"] = vote["reason"] if vote else "缺席"
-                stance["source_refs"] = vote["source_refs"] if vote else []
-            final.append({**voted, **adjudicate(voted)})
-            raw["events"].append({"type": "conflict.resolved" if final[-1]["status"] == "resolved" else "guard.signal", "payload": {"id": conflict["conflict_id"], "agent_id": "conflict_review"}})
-        register = {"conflicts": final, "open_count": sum(c["status"] == "open" for c in final),
-                    "escalated_ids": [c["conflict_id"] for c in final if c["status"] in ("suspended", "escalated")]}
+        register = finalize_register(minutes, registered)
+        for conflict in register["conflicts"]:
+            raw["events"].append({"type": "conflict.resolved" if conflict["status"] == "resolved" else "guard.signal", "payload": {"id": conflict["conflict_id"], "agent_id": "conflict_review"}})
         output = to_scheduler(ctx, raw)
-        output.artifacts["conflict_register"] = make_artifact(register, ctx.run_id, "P3", "conflict_review")
+        from src.agents.agent_signals import build_signals, redact
+        output.artifacts["conflict_register"] = make_artifact(redact(register), ctx.run_id, "P3", "conflict_review")
+        output.artifacts["agent_signals"] = make_artifact(build_signals(minutes, register, ctx.run_id), ctx.run_id, "P3", "agents")
         return output
     except (core.AgentError, KeyError, TypeError) as exc:
         raw["usage"] = model.gateway.usage()["calls"] - before if model else 0
