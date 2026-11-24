@@ -22,7 +22,8 @@ def run(ctx) -> StageResult:
 
     loop = asyncio.new_event_loop()
     try:
-        result_data = loop.run_until_complete(solution_gen_entry(requirement))
+        result_data, gen_events = loop.run_until_complete(solution_gen_entry(ctx))
+        all_events.extend(gen_events)  # 把生成步骤的事件合并到总事件里
     finally:
         loop.close()
 
