@@ -83,8 +83,37 @@ def _collect(window: ReplayWindow) -> tuple[list[dict[str, Any]], dict[str, int]
     return rows, index
 
 
+def _from_artifact(artifacts: dict[str, Any]) -> list[dict[str, Any]]:
+    """事件里只留了 conflict_register:CFL-001 这种引用，议题内容要从产物里取。
+
+    没有这一步，页面上只会出现一列「未命名议题 · 未分级」。
+    """
+    raw = artifacts.get("conflict_register")
+    data = raw.get("data", raw) if isinstance(raw, dict) else {}
+    rows: list[dict[str, Any]] = []
+    for conflict in data.get("conflicts") or []:
+        if not isinstance(conflict, dict):
+            continue
+        rows.append(
+            {
+                "conflict_id": str(conflict.get("conflict_id") or ""),
+                "topic": str(conflict.get("topic_id") or conflict.get("topic") or ""),
+                "level": str(conflict.get("level") or ""),
+                "seq": 0,
+                "stances": [s for s in (conflict.get("stances") or []) if isinstance(s, dict)],
+                "resolution": conflict.get("resolution"),
+                "status": str(conflict.get("status") or ""),
+            }
+        )
+    return rows
+
+
 def render(window: ReplayWindow, artifacts: dict, width: float = 1180) -> tuple[str, float]:
     rows, _index = _collect(window)
+    if not rows or not any(row.get("stances") for row in rows):
+        from_art = _from_artifact(artifacts)
+        if from_art:
+            rows = from_art
     height = HEAD_H + max(1, len(rows)) * ROW_H + 20
 
     margin = 8

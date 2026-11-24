@@ -13,6 +13,12 @@
     validate_challenge(challenge)      -> list[str]      质疑四要素校验
     find_veto_items(tasks)             -> list[dict]     否决项判定
     review(scores, ...)                -> ScoreSheet     P5 打分 + 门禁 + 回炉分流
+
+P5 的评审依据从产物里来（见文末「产物驱动的评审依据」一节）：
+    review_scope(comparison, tasks)    -> dict           这次审了哪些功能点/方案/任务卡
+    oversize_items_from_rows(...)      -> list[dict]     无任务卡时按方案层估算判粒度
+    score_from_artifacts(comparison)   -> dict           四维分 + 每维依据 + 算不出的维度
+    challenges_from_findings(...)      -> list[dict]     把扫出的硬伤翻成四要素齐全的质疑
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ from statistics import pstdev
 from typing import Any, Iterable
 
 from .models import (
+    DIM_WEIGHTS,
     SEVERITIES,
     Challenge,
     Conflict,
@@ -30,13 +37,6 @@ from .models import (
     canon_dim,
 )
 
-# 四个计分维度，权重和为 90；成本合理性只给估算，不计分
-DIM_WEIGHTS: dict[str, int] = {
-    "completeness": 25,
-    "feasibility": 25,
-    "risk": 25,
-    "testability": 15,
-}
 # 二级裁决权重：用户代表与质量评审员的诉求被牺牲后返工代价最大
 VOTE_WEIGHT: dict[str, float] = {"A1": 1.0, "A2": 1.5, "A3": 1.0, "A4": 1.5, "A5": 0.5, "A6": 0.5}
 
@@ -46,6 +46,8 @@ VOTE_MARGIN = 1.0
 MAX_TASK_DAYS = 3.0
 MAX_P5_REVISIONS = 3
 CHALLENGE_REJECT_LIMIT = 0.6
+# 四维里至少这么多维有分才允许过闸：靠一两个维度凑出 80 分不算评审通过。
+MIN_SCORED_DIMS = 3
 
 _ID_RE = re.compile(r"[A-Z]{2,5}-\d+")
 
@@ -98,17 +100,27 @@ def gate(
     scores: dict[str, Any],
     veto: bool = False,
     veto_items: Iterable[dict[str, Any]] | None = None,
+    min_dims: int = MIN_SCORED_DIMS,
 ) -> dict[str, Any]:
-    """G_P5_P6：总分 >= 80、无否决项、标准差 < 12，三条同时满足才放行。"""
+    """G_P5_P6：总分 >= 80、无否决项、标准差 < 12，三条同时满足才放行。
+
+    再加一条底线：有分数的维度不少于 min_dims。缺的维度不补分（不编数），
+    但也绝不允许「只有一维有分、总分照样 88」这种通过 —— 那不是评审，是凑数。
+    """
     veto_items = list(veto_items or [])
+    dims = canon_scores(scores)
     total = weighted_total(scores)
     sd = stddev(scores)
     reasons: list[str] = []
 
     if total is None:
         reasons.append("缺少可用的维度分数，无法计算总分")
-    elif total < PASS_TOTAL:
-        reasons.append("加权总分 %.2f < %.0f" % (total, PASS_TOTAL))
+    else:
+        if total < PASS_TOTAL:
+            reasons.append("加权总分 %.2f < %.0f" % (total, PASS_TOTAL))
+        if len(dims) < min_dims:
+            reasons.append("只有 %d 个维度有分数（至少 %d 个才能过闸），本次评审判不动"
+                           % (len(dims), min_dims))
     if veto or veto_items:
         codes = sorted({str(v.get("code") or "veto") for v in veto_items}) or ["veto"]
         reasons.append("存在阻断级否决项：" + "、".join(codes))
@@ -119,6 +131,7 @@ def gate(
         "pass": not reasons,
         "weighted_total": total,
         "stddev": sd,
+        "scored_dims": len(dims),
         "veto": bool(veto or veto_items),
         "veto_items": veto_items,
         "reasons": reasons,
@@ -263,6 +276,360 @@ def find_veto_items(
     return items
 
 
+# ---------------------------------------------------------------- 产物驱动的评审依据（P5）
+#
+# flow.yaml 给 P5 的输入只有 solution_comparison + conflict_register，dev_task_list 要到 P6
+# 才产出。所以「等上游把分喂过来」这条路在真实链路上走不通：全仓库没有第二处生产
+# review_input.scores，P5 拿不到分就必然 blocked —— 评审环节等于没干活。
+#
+# 这一节把评审依据从产物里算出来。原则只有一条：
+#   能算的才算；算不出来的维度<b>不补</b>，记进 unavailable 并说明原因。
+#   加权总分按实际参与维度的权重和归一（weighted_total 本来就这么做），
+#   绝不为了把表填满而编一个数。
+
+# 方案层人天估算超过「单卡上限」多少倍，才认为「这个功能本身就不可能装进一张卡」。
+# 不到这个倍数时无法判断粒度（一个功能本来就该拆成几张卡），留给 P6 的任务卡去判。
+ADVISORY_FACTOR = 3.0
+
+
+def _task_id(task: dict[str, Any]) -> str:
+    return str(task.get("task_id") or task.get("id") or "").strip()
+
+
+def _deps_of(task: dict[str, Any]) -> list[str]:
+    deps = task.get("depends_on") or task.get("dependencies") or []
+    if isinstance(deps, str):
+        deps = [deps]
+    return [str(d).strip() for d in deps if str(d).strip()]
+
+
+def _adopted_of(row: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """从一行对比里取出「采纳了哪套方案、那套方案长什么样」。"""
+    adopted = row.get("adopted")
+    if isinstance(adopted, str):
+        adopted = {"solution_id": adopted}
+    adopted = adopted if isinstance(adopted, dict) else {}
+    sid = str(adopted.get("solution_id") or adopted.get("id") or "").strip()
+
+    options = row.get("options")
+    opt = options.get(sid) if isinstance(options, dict) else None
+    if not isinstance(opt, dict):
+        # 有的实现把采纳项直接摊在 adopted 里，没有再嵌一层 options
+        keys = ("estimate_days", "cost_estimate", "cost", "days", "estimate")
+        opt = adopted if any(k in adopted for k in keys) else {}
+    return sid, opt
+
+
+def _days_of(opt: dict[str, Any]) -> float | None:
+    for key in ("estimate_days", "cost_estimate", "cost", "days", "estimate"):
+        value = _num((opt or {}).get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _rows_of(comparison: dict[str, Any]) -> list[dict[str, Any]]:
+    return [r for r in ((comparison or {}).get("rows") or []) if isinstance(r, dict)]
+
+
+def _features_of(comparison: dict[str, Any]) -> list[dict[str, Any]]:
+    return [f for f in ((comparison or {}).get("feature_items") or []) if isinstance(f, dict)]
+
+
+def _is_mixed(row: dict[str, Any]) -> bool:
+    """采纳项是不是「跨方案拼装」（交互取 B、实现取 A 这种）。"""
+    adopted = row.get("adopted") if isinstance(row.get("adopted"), dict) else {}
+    sid, _ = _adopted_of(row)
+    impl = str(adopted.get("implementation_from") or "").strip()
+    return bool(sid and impl and impl != sid)
+
+
+def review_scope(
+    comparison: dict[str, Any],
+    tasks: Iterable[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """清点这次评审到底覆盖了哪些上游条目。
+
+    评审单必须能回答「你审了什么」：哪几个功能点、采纳了哪几套方案、有几张任务卡。
+    否则从报告上看就只有一句「通过了」，跟没审一样。
+    """
+    rows = _rows_of(comparison)
+    feature_ids = [str(f.get("feature_id")) for f in _features_of(comparison) if f.get("feature_id")]
+    if not feature_ids:
+        feature_ids = [str(r.get("feature_id")) for r in rows if r.get("feature_id")]
+
+    pairs = [(str(r.get("feature_id") or ""), _adopted_of(r)[0]) for r in rows]
+    covered = {fid for fid, sid in pairs if fid and sid}
+    unadopted = sorted(({fid for fid, sid in pairs if fid and not sid}
+                        | {fid for fid in feature_ids if fid not in covered}))
+
+    tasks = [t for t in (tasks or []) if isinstance(t, dict)]
+    return {
+        "feature_count": len(feature_ids),
+        "adopted_count": len(covered),
+        "unadopted_features": unadopted,
+        "solution_ids": sorted({sid for _, sid in pairs if sid}),
+        "feature_ids": feature_ids,
+        "task_count": len(tasks),
+        "basis": "solution_comparison" + (" + 任务卡（随方案附带的 WBS 草案）" if tasks
+                                          else "（P5 阶段尚无任务卡）"),
+    }
+
+
+def oversize_items_from_rows(
+    comparison: dict[str, Any],
+    max_days: float = MAX_TASK_DAYS,
+    factor: float = ADVISORY_FACTOR,
+) -> list[dict[str, Any]]:
+    """没有任务卡时的粒度判定：用「被采纳方案对该功能的人天估算」代替单卡工时。
+
+    这不是真正的任务分解，只能回答「这个功能本身是不是被估得太粗」，
+    所以 code 仍然是 oversize，但 source 字段写明判据来自方案层，别让人误以为是任务卡。
+    """
+    limit = max_days * factor
+    items: list[dict[str, Any]] = []
+    for row in _rows_of(comparison):
+        fid = str(row.get("feature_id") or "")
+        sid, opt = _adopted_of(row)
+        days = _days_of(opt)
+        if days is None or days <= limit:
+            continue
+        items.append({
+            "code": "oversize",
+            "severity": "major",
+            "feature_id": fid,
+            "solution_id": sid,
+            "value_days": days,
+            "limit_days": limit,
+            "card_limit_days": max_days,
+            "source": "solution_comparison.adopted.cost_estimate",
+            "detail": "功能 %s 的采纳方案（%s）估 %.1f 人天，超过单卡上限 %.0f 人天的 %.0f 倍，"
+                      "说明方案层没打算把它拆开" % (fid, sid or "?", days, max_days, factor),
+        })
+    return items
+
+
+def _graph_depth(tasks: list[dict[str, Any]]) -> int:
+    """依赖图分成几层（最长依赖链上的节点数）；有环返回 0，环交给 dep_cycle 单独报。"""
+    known = {_task_id(t) for t in tasks if _task_id(t)}
+    graph = {_task_id(t): [d for d in _deps_of(t) if d in known] for t in tasks if _task_id(t)}
+    if not graph:
+        return 0
+
+    level: dict[str, int] = {}
+
+    def depth_of(tid: str, trail: frozenset[str]) -> int:
+        if tid in level:
+            return level[tid]
+        if tid in trail:
+            raise ValueError(tid)
+        deps = graph[tid]
+        trail = trail | {tid}
+        level[tid] = 1 if not deps else 1 + max(depth_of(d, trail) for d in deps)
+        return level[tid]
+
+    try:
+        return max(depth_of(tid, frozenset()) for tid in graph)
+    except ValueError:
+        return 0
+
+
+def _dangling_refs(tasks: list[dict[str, Any]]) -> list[str]:
+    """依赖指向不存在的任务号 —— 排期时会被悄悄忽略，波次就排少了。"""
+    known = {_task_id(t) for t in tasks if _task_id(t)}
+    out: list[str] = []
+    for task in tasks:
+        tid = _task_id(task) or "?"
+        out.extend("%s→%s" % (tid, dep) for dep in _deps_of(task) if dep not in known)
+    return out
+
+
+def score_from_artifacts(
+    comparison: dict[str, Any],
+    tasks: Iterable[dict[str, Any]] | None = None,
+    max_days: float = MAX_TASK_DAYS,
+    suspended_ids: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """四维分：从 P4 产物（有任务卡时一并）算出来，纯规则、可复算。
+
+    suspended_ids 是 P3 里判不动、挂起等人工裁决的冲突编号：
+    它们既压风险分，也直接决定「打不通过往哪儿退」（需求层没谈拢 → 退 P3）。
+
+    返回 {scores, evidence, unavailable, scope, veto_items, suspended_ids}：
+        scores      能算出几维就是几维
+        evidence    每一维是怎么算出来的，原样进评审单（评审单不能只有分数没有理由）
+        unavailable 算不出来的维度及原因（不补 0，不猜）
+        veto_items  顺手扫出来的结构硬伤
+    """
+    comparison = comparison or {}
+    tasks = [t for t in (tasks or []) if isinstance(t, dict)]
+    rows = _rows_of(comparison)
+    scope = review_scope(comparison, tasks)
+    suspended = sorted({str(s) for s in (suspended_ids or []) if str(s).strip()})
+
+    scores: dict[str, float] = {}
+    evidence: dict[str, str] = {}
+    unavailable: list[dict[str, str]] = []
+
+    # ---- 完整性：每个功能点是不是都有被采纳的方案
+    total = scope["feature_count"]
+    if total:
+        scores["completeness"] = round(100.0 * scope["adopted_count"] / total, 2)
+        missing = scope["unadopted_features"]
+        evidence["completeness"] = "已采纳方案的功能 %d / %d%s" % (
+            scope["adopted_count"], total,
+            ("；未采纳：" + "、".join(missing)) if missing else "")
+    else:
+        unavailable.append({
+            "dimension": "completeness",
+            "reason": "solution_comparison 里没有 feature_items / rows，无法清点功能覆盖",
+        })
+
+    # ---- 可行性：有任务卡看单卡工时，没任务卡只能按方案层估算粗判
+    if tasks:
+        over = [t for t in tasks if (_days_of(t) or 0) > max_days]
+        scores["feasibility"] = max(0.0, round(100.0 - 25.0 * len(over), 2))
+        evidence["feasibility"] = "任务卡 %d 张，单卡超 %.0f 人天 %d 张（%s）" % (
+            len(tasks), max_days, len(over),
+            "、".join("%s %.1fd" % (_task_id(t) or "?", _days_of(t) or 0) for t in over) or "无")
+    else:
+        judged = [(str(r.get("feature_id") or "?"), _days_of(_adopted_of(r)[1])) for r in rows]
+        judged = [(fid, days) for fid, days in judged if days is not None]
+        if judged:
+            limit = max_days * ADVISORY_FACTOR
+            over = [x for x in judged if x[1] > limit]
+            scores["feasibility"] = max(0.0, round(100.0 - 20.0 * len(over), 2))
+            evidence["feasibility"] = (
+                "无任务卡，按方案层人天估算粗判：%d 个功能里有 %d 个的被采纳方案估算超过 %.0f 人天（单卡上限的 %.0f 倍）%s；"
+                "逐卡粒度要等 P6 的任务卡才能判" % (
+                    len(judged), len(over), limit, ADVISORY_FACTOR,
+                    ("：" + "、".join("%s %.1fd" % x for x in over)) if over else ""))
+        else:
+            unavailable.append({
+                "dimension": "feasibility",
+                "reason": "方案里既没有任务卡，也没有 estimate_days / cost_estimate，无法判断粒度",
+            })
+
+    # ---- 风险：有任务卡看依赖结构；没任务卡看方案间估算差异、跨方案拼装与未收敛冲突
+    if tasks:
+        cycle = _dep_cycle_ids(tasks)
+        dangling = _dangling_refs(tasks)
+        depth = _graph_depth(tasks)
+        scores["risk"] = max(0.0, round(
+            100.0 - 10.0 * max(0, depth - 4) - 8.0 * len(dangling) - 25.0 * (1 if cycle else 0), 2))
+        evidence["risk"] = "依赖 %d 层、悬空引用 %d 处、%s" % (
+            depth, len(dangling),
+            ("存在依赖环（" + "、".join(cycle) + "）") if cycle else "无环")
+    else:
+        totals: dict[str, float] = {}
+        for row in rows:
+            options = row.get("options") if isinstance(row.get("options"), dict) else {}
+            for sid, opt in options.items():
+                days = _days_of(opt if isinstance(opt, dict) else {})
+                if days is not None:
+                    totals[str(sid)] = totals.get(str(sid), 0.0) + days
+        ratio = None
+        if totals:
+            low = min(totals.values())
+            if low > 0:
+                ratio = round(max(totals.values()) / low, 2)
+        mixes = [str(r.get("feature_id") or "?") for r in rows if _is_mixed(r)]
+
+        if ratio is None and not suspended:
+            unavailable.append({
+                "dimension": "risk",
+                "reason": "方案里没有可用的人天估算，冲突也都已裁决，没有可判的风险信号",
+            })
+        else:
+            penalty = 0.0 if ratio is None or ratio < 2 else (8.0 if ratio < 4 else 15.0)
+            penalty += 6.0 * min(len(mixes), 2) + 12.0 * len(suspended)
+            scores["risk"] = max(0.0, round(100.0 - penalty, 2))
+            evidence["risk"] = "方案间总成本相差 %s 倍%s；跨方案拼装 %d 处%s；未收敛冲突 %d 条%s" % (
+                "%.1f" % ratio if ratio is not None else "（无估算）",
+                ("（" + "、".join("%s=%.0fd" % kv for kv in sorted(totals.items())) + "）") if totals else "",
+                len(mixes), ("（" + "、".join(mixes) + "）") if mixes else "",
+                len(suspended), ("（" + "、".join(suspended) + "）") if suspended else "")
+
+    # ---- 可测试性：没有验收标准就无从谈起，方案层也根本没有验收标准
+    if tasks:
+        no_acc = [t for t in tasks
+                  if not [a for a in (t.get("acceptance") or t.get("acceptance_criteria") or [])
+                          if str(a).strip()]]
+        scores["testability"] = max(0.0, round(100.0 * (len(tasks) - len(no_acc)) / len(tasks), 2))
+        evidence["testability"] = "%d 张卡中缺验收标准 %d 张%s" % (
+            len(tasks), len(no_acc),
+            ("（" + "、".join(_task_id(t) or "?" for t in no_acc) + "）") if no_acc else "")
+    else:
+        unavailable.append({
+            "dimension": "testability",
+            "reason": "P5 阶段还没有任务卡（dev_task_list 由 P6 产出），验收标准无从判定，交 G_P6_TASKS 复核",
+        })
+
+    veto_items = list(find_veto_items(tasks, max_days=max_days))
+    if not tasks:
+        veto_items.extend(oversize_items_from_rows(comparison, max_days))
+
+    return {
+        "scores": scores,
+        "evidence": evidence,
+        "unavailable": unavailable,
+        "scope": scope,
+        "veto_items": veto_items,
+        "suspended_ids": suspended,
+    }
+
+
+def challenges_from_findings(finding: dict[str, Any]) -> list[dict[str, Any]]:
+    """把扫出来的硬伤翻成「四要素齐全」的质疑 —— 规则版评审员，不是模型。
+
+    这样即使没有人手写质疑，评审单也不会只有分数没有意见。
+    手写质疑仍然优先：由调用方按 impact_ref 去重后再合并。
+    编号统一 CHG-R###（R = rule），一眼能看出是规则提的、不是人写的。
+
+    归因决定回炉去向，所以每条都得指准了：
+        方案层（oversize / 依赖成环）→ 退 P4 改切法；
+        需求层（未收敛的冲突）      → 退 P3 补质询。
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(description: str, impact_ref: str, consequence: str,
+            category: str, severity: str) -> None:
+        key = (category, impact_ref)
+        if key in seen or not impact_ref:
+            return
+        seen.add(key)
+        out.append({
+            "challenge_id": "CHG-R%03d" % (len(out) + 1),
+            "description": description,
+            "impact_ref": impact_ref,
+            "consequence": consequence,
+            "category": category,
+            "severity": severity,
+            "verdict": "accepted",
+        })
+
+    for item in finding.get("veto_items") or []:
+        code = str(item.get("code") or "")
+        ref = str(item.get("task_id") or item.get("feature_id")
+                  or (item.get("task_ids") or [""])[0] or "")
+        if code == "oversize":
+            add(str(item.get("detail") or "单卡工时超限"), ref,
+                "估时不可信，排期无法按周落地，波次也切不细", "solution", "major")
+        elif code == "no_acceptance":
+            add("%s 只写了做什么，没写怎么算做完，完成标准没谈拢" % (ref or "任务卡"), ref,
+                "基线无法冻结，返工时无法判断改够了没有", "requirement", "blocking")
+        elif code == "dep_cycle":
+            add("任务依赖成环（%s），拓扑排序永远算不出波次" % (ref or "见 veto_items"), ref,
+                "排期算法无法收敛，P7 拿不到可行波次", "solution", "blocking")
+
+    for cid in finding.get("suspended_ids") or []:
+        add("%s 的争议到 P5 仍未收敛，需求口径没有谈拢" % cid, cid,
+            "带着未决口径去做分解，任务卡做完才发现方向错了", "requirement", "major")
+
+    return out
+
+
 # ---------------------------------------------------------------- 冲突扫描（P3）
 
 def detect_conflicts(stances: Iterable[Any], existing: int = 0) -> list[dict[str, Any]]:
@@ -401,11 +768,24 @@ def review(
     challenges: Iterable[Any] | None = None,
     revision_count: int = 0,
     score_id: str = "SCR-001",
+    evidence: dict[str, str] | None = None,
+    unavailable: Iterable[dict[str, str]] | None = None,
+    scope: dict[str, Any] | None = None,
+    score_origin: str = "input",
+    min_dims: int = MIN_SCORED_DIMS,
+    triage: dict[str, Any] | None = None,
 ) -> ScoreSheet:
-    """P5 一步到位：四要素校验 → 算分 → 门禁 → 回炉分流。"""
+    """P5 一步到位：四要素校验 → 算分 → 门禁 → 回炉分流。
+
+    evidence / unavailable / scope 三个参数是「评审依据」：
+    分数怎么来的、哪一维没算出来、审了哪些上游条目，都要跟着评分单一起落盘。
+
+    triage 可以由调用方传进来（它已经对「原始提交」做过一次分堆）。
+    不传则对 challenges 现算 —— 但别把已受理的列表再喂回来，那样驳回数永远是 0。
+    """
     dims = canon_scores(scores)
-    triage = triage_challenges(challenges or [])
-    result = gate(scores, veto=veto, veto_items=veto_items)
+    triage = triage if isinstance(triage, dict) else triage_challenges(challenges or [])
+    result = gate(scores, veto=veto, veto_items=veto_items, min_dims=min_dims)
 
     rework = None
     if not result["pass"]:
@@ -422,4 +802,16 @@ def review(
         passed=result["pass"],
         reasons=result["reasons"],
         rework_target=(rework or {}).get("target"),
+        score_origin=score_origin,
+        evidence=dict(evidence or {}),
+        unavailable=[dict(u) for u in (unavailable or [])],
+        reviewed_scope=dict(scope or {}),
+        triage={
+            "submit_count": triage["submit_count"],
+            "reject_count": triage["reject_count"],
+            "reject_rate": triage["reject_rate"],
+            "guard": triage["guard"],
+            "rejected": [{"challenge": r["challenge"], "errors": list(r["errors"])}
+                         for r in triage["rejected"]],
+        },
     )

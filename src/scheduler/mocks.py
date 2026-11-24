@@ -74,8 +74,66 @@ def _idea_text(ctx: StageContext) -> str:
     return str(ctx.artifact_data("idea_card").get("idea_text") or "（缺想法）")
 
 
-def _feature_ids() -> list[str]:
-    return ["FEA-001", "FEA-002", "FEA-003"]
+AGENT_IDS = ("A1", "A2", "A3", "A4", "A5", "A6")
+
+# 规格里一条 features 都没写时的兜底（老 demo 的三条），保证链路不至于空转
+_FALLBACK_FEATURES = [
+    {"feature_id": "FEA-001", "title": "讨论频道的消息收发与存储"},
+    {"feature_id": "FEA-002", "title": "讨论归档与全文检索"},
+    {"feature_id": "FEA-003", "title": "文件与结论的关联登记"},
+]
+
+
+def _spec(ctx: StageContext) -> dict[str, Any]:
+    """P1 把人给的设计规格原样塞进 idea_card.design_spec，这里是唯一的输入源。"""
+    spec = ctx.artifact_data("idea_card").get("design_spec") or {}
+    return spec if isinstance(spec, dict) else {}
+
+
+def _spec_list(ctx: StageContext, key: str) -> list[str]:
+    """取规格里的字符串数组（scope / non_goals / constraints），元素是对象也能吃。"""
+    raw = _spec(ctx).get(key) or []
+    if isinstance(raw, str):
+        raw = [raw]
+    out: list[str] = []
+    for item in raw:
+        if isinstance(item, dict):
+            text = str(item.get("title") or item.get("name") or item.get("text") or "").strip()
+        else:
+            text = str(item).strip()
+        if text:
+            out.append(text)
+    return out
+
+
+def _spec_features(ctx: StageContext) -> list[dict[str, str]]:
+    """把规格的 features 归一成 [{feature_id, title}]。
+
+    规格里可以写字符串（"讨论归档与全文检索"），也可以写对象
+    （{"feature_id": "FEA-007", "title": "..."}）；一条都取不到才退回兜底三条。
+    """
+    raw = _spec(ctx).get("features") or []
+    out: list[dict[str, str]] = []
+    for i, item in enumerate(raw, start=1):
+        if isinstance(item, dict):
+            title = str(item.get("title") or item.get("name") or item.get("feature") or "").strip()
+            fid = str(item.get("feature_id") or item.get("id") or f"FEA-{i:03d}").strip()
+        else:
+            title, fid = str(item).strip(), f"FEA-{i:03d}"
+        if title:
+            out.append({"feature_id": fid, "title": title})
+    return out or [dict(f) for f in _FALLBACK_FEATURES]
+
+
+def _feature_ids(ctx: StageContext) -> list[str]:
+    return [f["feature_id"] for f in _spec_features(ctx)]
+
+
+def _feature_title(ctx: StageContext, fid: str) -> str:
+    for f in _spec_features(ctx):
+        if f["feature_id"] == fid:
+            return f["title"]
+    return fid
 
 
 def _ok(stage: str, artifacts: dict[str, Any], budget: int, events: list[dict[str, Any]] | None = None) -> StageResult:
@@ -212,7 +270,8 @@ def _run_p3(ctx: StageContext) -> StageResult:
 # ---------------------------------------------------------------- P4 solution_gen
 
 def run_solution_gen(ctx: StageContext) -> StageResult:
-    ids = _feature_ids()
+    feats = _spec_features(ctx)
+    ids = [f["feature_id"] for f in feats]
     solutions = [
         {"solution_id": "SOL_A", "strategy": "cost_first", "feature_ids": ids, "constraints_ref": "flow.yaml#shared_constraints"},
         {"solution_id": "SOL_B", "strategy": "experience_first", "feature_ids": ids, "constraints_ref": "flow.yaml#shared_constraints"},
@@ -221,11 +280,11 @@ def run_solution_gen(ctx: StageContext) -> StageResult:
     if SCENARIO["p4_mismatch"]:
         solutions[2]["feature_ids"] = ids[:2]  # 扩展优先漏了一个功能 → 违反 C4
 
-    feature_items = [
-        {"feature_id": "FEA-001", "title": "项目内讨论频道", "source_ref": "problem_list:PRB-001"},
-        {"feature_id": "FEA-002", "title": "讨论归档与检索", "source_ref": "problem_list:PRB-002"},
-        {"feature_id": "FEA-003", "title": "文件与结论关联", "source_ref": "problem_list:PRB-003"},
-    ]
+    problem_count = len(ctx.artifact_data("problem_list").get("problems") or [])
+    feature_items = []
+    for i, f in enumerate(feats, start=1):
+        src = f"problem_list:PRB-{i:03d}" if i <= problem_count else f"idea_card:design_spec#{f['feature_id']}"
+        feature_items.append({"feature_id": f["feature_id"], "title": f["title"], "source_ref": src})
     rows = []
     for i, fid in enumerate(ids, start=1):
         rows.append({
@@ -326,10 +385,16 @@ def run_conflict_review(ctx: StageContext) -> StageResult:
 
 # ---------------------------------------------------------------- P6 req_builder（含 PM Agent 的 dev_task 分解）
 
-def _dev_tasks() -> list[dict[str, Any]]:
+def _dev_tasks(ctx: StageContext) -> list[dict[str, Any]]:
     """PM Agent（A6）按设计规格分解出的开发任务清单（WBS）。
 
     八项字段与 taskgraph.REQUIRED_FIELDS 对齐：任务号、模块、标题、依赖、工时、负责人、验收、功能追溯。
+
+    分解口径（跟着输入规格走，不再写死）：
+    - 规格里每个功能点拆两张卡：后端实现（2 人天）+ 界面交互（1 人天）；
+    - 后端按功能点先后串成主链（后一个功能挂在前一个后端后面），前端挂在自己后端后面；
+    - 最后补两张横切卡：主链路联调验收（2 人天）+ 接口说明与部署手册（1 人天）；
+    - 单卡工时封顶 2 人天，不会命中 >3 人天的 oversize 否决项。
     """
     def task(tid, title, module, kind, fea, req, role, days, deps, acceptance):
         return {
@@ -347,7 +412,8 @@ def _dev_tasks() -> list[dict[str, Any]]:
         }
 
     if SCENARIO["p6_wide"]:
-        # 六张卡全部互不依赖 → 一个波次并行 6 张，用于验证并行度上限与资源冲突提示（A-15）
+        # 六张卡全部互不依赖 → 一个波次并行 6 张，用于验证并行度上限与资源冲突提示（A-15）。
+        # 这一组是「故意造出来」的测试夹具，不跟规格走，其他场景才按规格分解。
         return [
             task("DEV-101", "账号与登录", "auth", "backend", ["FEA-001"], ["REQ-001"], "dev_backend", 2, [],
                  ["能注册并登录，会话可续"]),
@@ -363,40 +429,56 @@ def _dev_tasks() -> list[dict[str, Any]]:
                  ["主链路脚本可一键跑"]),
         ]
 
-    tasks = [
-        task("DEV-001", "讨论频道的消息收发与存储", "messaging", "backend",
-             ["FEA-001"], ["REQ-001"], "dev_backend", 3, [],
-             ["发送一条讨论后能在该频道读到", "重启服务后历史消息不丢"]),
-        task("DEV-002", "讨论归档与全文检索", "archive", "backend",
-             ["FEA-002"], ["REQ-002"], "dev_backend", 4, ["DEV-001"],
-             ["能按项目归档讨论", "关键词能命中 90 天内的归档"]),
-        task("DEV-003", "讨论列表与详情页", "web-chat", "frontend",
-             ["FEA-001"], ["REQ-001"], "dev_frontend", 3, ["DEV-001"],
-             ["列表按时间倒序", "详情页可回复"]),
-        task("DEV-004", "归档筛选与搜索框", "web-archive", "frontend",
-             ["FEA-002"], ["REQ-002"], "dev_frontend", 2, ["DEV-003", "DEV-002"],
-             ["可按项目与时间筛选", "搜索无结果有兜底提示"]),
-        task("DEV-005", "文件与结论的关联登记", "attachment", "data",
-             ["FEA-003"], ["REQ-003"], "dev_data", 3, ["DEV-001"],
-             ["文件可挂到某条结论上", "关联关系可反查"]),
-        task("DEV-006", "外部成员的可见性边界", "permission", "integration",
-             ["FEA-003"], ["REQ-003"], "dev_integration", 2, ["DEV-005"],
-             ["外部成员看不到内部文件", "越权请求被拒并留痕"]),
-        task("DEV-007", "主链路验收用例", "tests", "test",
-             ["FEA-001", "FEA-002", "FEA-003"], ["REQ-001", "REQ-002", "REQ-003"], "dev_test", 2,
-             ["DEV-004", "DEV-006"],
-             ["主链路脚本全部通过", "失败用例能定位到具体卡"]),
-        task("DEV-008", "接口说明与部署手册", "docs", "docs",
-             ["FEA-001", "FEA-002", "FEA-003"], ["REQ-001", "REQ-002", "REQ-003"], "dev_docs", 1,
-             ["DEV-007"],
-             ["README 能按步骤跑起来", "接口字段与返回码齐全"]),
-    ]
+    feats = _spec_features(ctx)
+    tasks: list[dict[str, Any]] = []
+    backend_chain: list[str] = []
+    frontend_ids: list[str] = []
+
+    for i, f in enumerate(feats, start=1):
+        fid, title = f["feature_id"], f["title"]
+        module = f"fea{i:02d}"
+        dev_id = f"DEV-{2 * i - 1:03d}"    # 后端卡
+        ui_id = f"DEV-{2 * i:03d}"         # 界面卡
+        tasks.append(task(
+            dev_id, f"{title}：后端实现", module, "backend",
+            [fid], [f"REQ-{i:03d}"], "dev_backend", 2,
+            [backend_chain[-1]] if backend_chain else [],
+            [f"「{title}」的主流程在后端可跑通", "接口返回结构与规格描述一致"],
+        ))
+        tasks.append(task(
+            ui_id, f"{title}：界面与交互", module, "frontend",
+            [fid], [f"REQ-{i:03d}"], "dev_frontend", 1,
+            [dev_id],
+            [f"「{title}」在界面上能走完整流程", "空态、失败提示都有兜底"],
+        ))
+        backend_chain.append(dev_id)
+        frontend_ids.append(ui_id)
+
+    all_fea = [f["feature_id"] for f in feats]
+    all_req = [f"REQ-{i:03d}" for i in range(1, len(feats) + 1)]
+    test_id = f"DEV-{2 * len(feats) + 1:03d}"
+    docs_id = f"DEV-{2 * len(feats) + 2:03d}"
+    tasks.append(task(
+        test_id, "主链路联调与验收用例", "tests", "test",
+        all_fea, all_req, "dev_test", 2, frontend_ids,
+        ["主链路脚本全部通过", "失败用例能定位到具体卡"],
+    ))
+    tasks.append(task(
+        docs_id, "接口说明与部署手册", "docs", "docs",
+        all_fea, all_req, "dev_docs", 1, [test_id],
+        ["README 能按步骤跑起来", "接口字段与返回码齐全"],
+    ))
+
     if SCENARIO["p6_uncovered"]:
-        # FEA-003 没有任何任务承接 → 分解漏项
-        for t in tasks:
-            t["feature_refs"] = [f for f in t["feature_refs"] if f != "FEA-003"]
+        # 最后一个功能点没有任何卡承接 → 分解漏项（把它在卡里的追溯改成第一个功能点，
+        # 这样卡的 feature_refs 仍然非空，只会让 every_feature_has_task 失败）
+        miss = feats[-1]["feature_id"]
+        keep = feats[0]["feature_id"]
+        if miss != keep:
+            for t in tasks:
+                t["feature_refs"] = [keep if x == miss else x for x in t["feature_refs"]]
     if SCENARIO["p6_cycle"]:
-        tasks[0]["depends_on"] = ["DEV-008"]  # 001 → 008 → 007 → 004 → 002 → 001，成环
+        tasks[0]["depends_on"] = [tasks[-1]["task_id"]]  # 第一张卡挂到最后一张卡上 → 成环
     return tasks
 
 
@@ -407,16 +489,17 @@ def run_req_builder(ctx: StageContext) -> StageResult:
             adopted.append(row.get("feature_id"))
 
     reqs = []
-    for i, fid in enumerate(adopted or _feature_ids(), start=1):
+    for i, fid in enumerate(adopted or _feature_ids(ctx), start=1):
+        f_title = _feature_title(ctx, fid)
         ac = [] if (SCENARIO["p6_missing_acceptance"] and i == 1) else [{
-            "given": "用户已在项目内",
-            "when": "用户提交一条讨论",
-            "then": "讨论出现在该项目的归档列表中",
+            "given": "用户已完成登录",
+            "when": f"用户使用「{f_title}」这条能力",
+            "then": f"「{f_title}」按规格描述返回预期结果",
         }]
         reqs.append({
             "req_id": f"REQ-{i:03d}",
-            "title": f"承接 {fid} 的需求",
-            "description": f"依据 {fid} 的采纳实现落地",
+            "title": f_title,
+            "description": f"承接 {fid}：{f_title}，按采纳方案的实现口径落地",
             "acceptance_criteria": ac,
             "priority": "must",
             "depends_on": [],
@@ -425,8 +508,9 @@ def run_req_builder(ctx: StageContext) -> StageResult:
         })
 
     rows = []
-    for i, fid in enumerate(_feature_ids(), start=1):
-        covered = [] if (SCENARIO["p6_gap"] and i == 3) else [f"REQ-{i:03d}"]
+    feature_ids = _feature_ids(ctx)
+    for i, fid in enumerate(feature_ids, start=1):
+        covered = [] if (SCENARIO["p6_gap"] and i == len(feature_ids)) else [f"REQ-{i:03d}"]
         rows.append({
             "source_type": "feature",
             "source_id": fid,
@@ -442,10 +526,10 @@ def run_req_builder(ctx: StageContext) -> StageResult:
         "coverage_rate": round((len(rows) - gap_count) / len(rows), 3),
     }
     dev_tasks = {
-        "tasks": _dev_tasks(),
+        "tasks": _dev_tasks(ctx),
         "source_ref": "idea_card:design_spec",
         "decomposition_by": "A6/pm_agent",
-        "note": "开发任务清单（WBS），与 §4.1 的执行卡 T-P1-01…T-P7-02 不是同一套",
+        "note": "开发任务清单（WBS），按设计规格的 features 逐条分解，与 §4.1 的执行卡 T-P1-01…T-P7-02 不是同一套",
     }
     arts = {
         "requirement_spec": make_artifact(

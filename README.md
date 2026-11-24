@@ -18,7 +18,7 @@
 | P1 规格输入 / P2 角色讨论 / P7 排期编排 | A | `src/scheduler/` | `docs/architecture.md` | ✅ 引擎跑通（mock 全流程） |
 | P3 三段式讨论与防趋同 | B | `src/agents/` | `docs/role-discussion.md` | ⚠️ 逻辑完成，缺 `run(ctx)` 入口 |
 | P4 三套方案生成与对比 | C | `src/solution_gen/` | `docs/multi-solution.md` | ⬜ 待实现 |
-| P5 冲突裁决与五维打分 | D | `src/conflict_review/` | `docs/review-conflict.md` | ✅ 已并入 main，12 条用例 |
+| P5 冲突裁决与四维评审（成本仅估算） | D | `src/conflict_review/` | `docs/review-conflict.md` | ✅ 已并入 main，15 条用例；评审依据可从产物反算 |
 | P6 任务卡生成与覆盖矩阵 | E | `src/req_builder/` | `docs/require-model.md` | ✅ 已并入 main，30 条用例 |
 | 执行可视化（七视图） | E | `src/req_builder/viz/` | `docs/visualization.md` | ✅ 可渲染真实 `events.jsonl` |
 | 基线变更与冻结 | F | `src/baseline_mgr/` | `docs/baseline-change.md` | ⬜ 待实现 |
