@@ -446,5 +446,22 @@ class CliTest(unittest.TestCase):
             self.assertIn("EVT-00030", out.read_text(encoding="utf-8"))
 
 
+class DiscussionFallbackTest(unittest.TestCase):
+    def test_v2_falls_back_to_discussion_artifact(self):
+        """A 的运行 P3 只落 1 条 agent.statement，讨论内容要从产物补齐。"""
+        from req_builder.viz.cli import load_artifacts
+        from req_builder.viz.views import v2_discussion
+
+        root = Path(__file__).resolve().parents[1] / "examples" / "results" / "DEMO-WX"
+        events = load_events(root / "events.jsonl")
+        bundle = load_artifacts(root / "artifacts")
+        markup, height = v2_discussion.render(ReplayWindow.of(events), bundle)
+        self.assertEqual(markup.count("条<"), 3)
+        self.assertIn("4 条", markup)   # statements
+        self.assertIn("2 条", markup)   # votes
+        self.assertIn("discussion_minutes.json", markup)
+        self.assertGreater(height, 40)
+
+
 if __name__ == "__main__":
     unittest.main()
