@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P5",
+    "produced_by": "conflict_review",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "conflicts": [
+      {
+        "conflict_id": "CFL-001",
+        "issue_id": "ISS",
+        "topic_id": "granularity",
+        "stances": [
+          {
+            "agent_id": "A1",
+            "topic_id": "granularity",
+            "position": "for",
+            "claim": "范围条目可逐项核对，先交付最小闭环符合成本约束。",
+            "source_refs": [
+              "material_catalog:MAT-001"
+            ],
+            "quote_ref": "discussion_minutes:ST-ISS-001-1-A1"
+          },
+          {
+            "agent_id": "A2",
+            "topic_id": "granularity",
+            "position": "for",
+            "claim": "关键路径能形成可观察结果，用户价值不会被技术步骤掩盖。",
+            "source_refs": [
+              "material_catalog:MAT-003"
+            ],
+            "quote_ref": "discussion_minutes:ST-ISS-001-1-A2"
+          },
+          {
+            "agent_id": "A3",
+            "topic_id": "granularity",
+            "position": "against",
+            "claim": "依赖方向必须先固定，否则并行实现会产生接口返工。",
+            "source_refs": [
+              "material_catalog:MAT-004"
+            ],
+            "quote_ref": "discussion_minutes:ST-ISS-001-1-A3"
+          },
+          {
+            "agent_id": "A4",
+            "topic_id": "granularity",
+            "position": "neutral",
+            "claim": "风险验收需要独立证据，当前材料不足以支持提前放行。",
+            "source_refs": [
+              "material_catalog:MAT-005"
+            ],
+            "quote_ref": "discussion_minutes:ST-ISS-001-1-A4"
+          }
+        ],
+        "level": "L2_weighted_vote",
+        "status": "resolved",
+        "resolution": {
+          "type": "weighted_vote",
+          "winner": "A1",
+          "proposal": "范围条目可逐项核对，先交付最小闭环符合成本约束。",
+          "score": 1.5,
+          "decided_by": "rule",
+          "reason": "加权票差 +1.5，达到判定线 1.0"
+        },
+        "extensions": {
+          "original_stances": [
+            {
+              "agent_id": "A1",
+              "topic_id": "granularity",
+              "position": "for",
+              "claim": "先按本期设计规格锁定交付边界，再按可观察到的结果组织首批开发任务。",
+              "source_refs": [
+                "material_catalog:MAT-001"
+              ],
+              "quote_ref": "discussion_minutes:ST-ISS-001-1-A1"
+            },
+            {
+              "agent_id": "A2",
+              "topic_id": "granularity",
+              "position": "for",
+              "claim": "核心用户路径必须先走通，验收应围绕实际操作后的可见结果展开。",
+              "source_refs": [
+                "material_catalog:MAT-003"
+              ],
+              "quote_ref": "discussion_minutes:ST-ISS-001-1-A2"
+            },
+            {
+              "agent_id": "A3",
+              "topic_id": "granularity",
+              "position": "against",
+              "claim": "接口前置条件决定依赖方向，任务边界需要沿模块契约单向排列。",
+              "source_refs": [
+                "material_catalog:MAT-004"
+              ],
+              "quote_ref": "discussion_minutes:ST-ISS-001-1-A3"
+            },
+            {
+              "agent_id": "A4",
+              "topic_id": "granularity",
+              "position": "against",
+              "claim": "风险与异常路径要独立验收，不能用正常流程通过来替代失败拦截。",
+              "source_refs": [
+                "material_catalog:MAT-005"
+              ],
+              "quote_ref": "discussion_minutes:ST-ISS-001-1-A4"
+            }
+          ]
+        }
+      }
+    ],
+    "open_count": 0,
+    "escalated_ids": []
+  },
+  "extensions": {}
+}

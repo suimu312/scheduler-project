@@ -1,0 +1,254 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P4",
+    "produced_by": "solution_gen",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "feature_items": [
+      {
+        "feature_id": "FEA-001",
+        "source_ref": "problem_list:PRB-001"
+      },
+      {
+        "feature_id": "FEA-002",
+        "source_ref": "problem_list:PRB-002"
+      },
+      {
+        "feature_id": "FEA-003",
+        "source_ref": "problem_list:PRB-003"
+      }
+    ],
+    "solutions": [
+      {
+        "solution_id": "SOL_A",
+        "strategy": "by_module",
+        "label": "按模块细分",
+        "feature_ids": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "task_count": 3
+      },
+      {
+        "solution_id": "SOL_B",
+        "strategy": "by_milestone",
+        "label": "按里程碑切",
+        "feature_ids": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "task_count": 3
+      },
+      {
+        "solution_id": "SOL_C",
+        "strategy": "by_risk",
+        "label": "按风险优先",
+        "feature_ids": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "task_count": 3
+      }
+    ],
+    "rows": [
+      {
+        "feature_id": "FEA-001",
+        "options": {
+          "SOL_A": {
+            "description": "按模块边界拆分，便于并行",
+            "cost_estimate": 1,
+            "risk": "low"
+          },
+          "SOL_B": {
+            "description": "按里程碑拆分，便于阶段验收",
+            "cost_estimate": 2,
+            "risk": "medium"
+          },
+          "SOL_C": {
+            "description": "按风险优先拆分，便于早暴露问题",
+            "cost_estimate": 3,
+            "risk": "high"
+          }
+        },
+        "adopted": {
+          "solution_id": "SOL_B",
+          "implementation_from": "SOL_A",
+          "rationale": "首批采用里程碑验收，实现沿用模块边界，保证依赖方向一致"
+        },
+        "source_refs": [
+          "problem_list:PRB-001"
+        ]
+      },
+      {
+        "feature_id": "FEA-002",
+        "options": {
+          "SOL_A": {
+            "description": "按模块边界拆分，便于并行",
+            "cost_estimate": 2,
+            "risk": "low"
+          },
+          "SOL_B": {
+            "description": "按里程碑拆分，便于阶段验收",
+            "cost_estimate": 3,
+            "risk": "medium"
+          },
+          "SOL_C": {
+            "description": "按风险优先拆分，便于早暴露问题",
+            "cost_estimate": 4,
+            "risk": "high"
+          }
+        },
+        "adopted": {
+          "solution_id": "SOL_A",
+          "implementation_from": "SOL_A",
+          "rationale": "首批采用里程碑验收，实现沿用模块边界，保证依赖方向一致"
+        },
+        "source_refs": [
+          "problem_list:PRB-002"
+        ]
+      },
+      {
+        "feature_id": "FEA-003",
+        "options": {
+          "SOL_A": {
+            "description": "按模块边界拆分，便于并行",
+            "cost_estimate": 3,
+            "risk": "low"
+          },
+          "SOL_B": {
+            "description": "按里程碑拆分，便于阶段验收",
+            "cost_estimate": 4,
+            "risk": "medium"
+          },
+          "SOL_C": {
+            "description": "按风险优先拆分，便于早暴露问题",
+            "cost_estimate": 5,
+            "risk": "high"
+          }
+        },
+        "adopted": {
+          "solution_id": "SOL_A",
+          "implementation_from": "SOL_A",
+          "rationale": "首批采用里程碑验收，实现沿用模块边界，保证依赖方向一致"
+        },
+        "source_refs": [
+          "problem_list:PRB-003"
+        ]
+      }
+    ],
+    "adopted_ref": "baseline_decision",
+    "shared_constraints": [
+      "三套方案共用同一份功能清单",
+      "不做代码生成，只产出任务规格"
+    ],
+    "adopted": {
+      "feature_ids": [
+        "FEA-001",
+        "FEA-002",
+        "FEA-003"
+      ],
+      "decisions": [
+        {
+          "feature_id": "FEA-001",
+          "solution_id": "SOL_B",
+          "implementation_from": "SOL_A",
+          "rationale": "首批采用里程碑验收，实现沿用模块边界，保证依赖方向一致"
+        },
+        {
+          "feature_id": "FEA-002",
+          "solution_id": "SOL_A",
+          "implementation_from": "SOL_A",
+          "rationale": "首批采用里程碑验收，实现沿用模块边界，保证依赖方向一致"
+        },
+        {
+          "feature_id": "FEA-003",
+          "solution_id": "SOL_A",
+          "implementation_from": "SOL_A",
+          "rationale": "首批采用里程碑验收，实现沿用模块边界，保证依赖方向一致"
+        }
+      ]
+    },
+    "tasks": [
+      {
+        "task_id": "DEV-001",
+        "title": "实现讨论频道的消息收发与存储",
+        "module": "MOD-001",
+        "module_id": "MOD-001",
+        "owner_role": "dev_backend",
+        "estimate_days": 2.0,
+        "depends_on": [],
+        "acceptance": [
+          "提交讨论频道的消息收发与存储后，查询接口返回包含该条目的结果"
+        ],
+        "feature_refs": [
+          "FEA-001"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-001",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "deliverable": "src/MOD-001"
+      },
+      {
+        "task_id": "DEV-002",
+        "title": "实现讨论归档与全文检索",
+        "module": "MOD-002",
+        "module_id": "MOD-002",
+        "owner_role": "dev_frontend",
+        "estimate_days": 1.5,
+        "depends_on": [
+          "DEV-001"
+        ],
+        "acceptance": [
+          "提交讨论归档与全文检索后，查询接口返回包含该条目的结果"
+        ],
+        "feature_refs": [
+          "FEA-002"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-002",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "deliverable": "src/MOD-002"
+      },
+      {
+        "task_id": "DEV-003",
+        "title": "实现文件与结论的关联登记",
+        "module": "MOD-003",
+        "module_id": "MOD-003",
+        "owner_role": "dev_data",
+        "estimate_days": 2.0,
+        "depends_on": [
+          "DEV-002"
+        ],
+        "acceptance": [
+          "提交文件与结论的关联登记后，查询接口返回包含该条目的结果"
+        ],
+        "feature_refs": [
+          "FEA-003"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-003",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "deliverable": "src/MOD-003"
+      }
+    ]
+  },
+  "extensions": {}
+}

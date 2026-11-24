@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO",
+    "stage": "P6",
+    "produced_by": "req_builder",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "rows": [
+      {
+        "source_type": "feature",
+        "source_id": "FEA-001",
+        "source_ref": "solution_comparison:FEA-001",
+        "covered_by": [
+          "REQ-001"
+        ],
+        "status": "covered"
+      },
+      {
+        "source_type": "feature",
+        "source_id": "FEA-002",
+        "source_ref": "solution_comparison:FEA-002",
+        "covered_by": [
+          "REQ-002"
+        ],
+        "status": "covered"
+      },
+      {
+        "source_type": "feature",
+        "source_id": "FEA-003",
+        "source_ref": "solution_comparison:FEA-003",
+        "covered_by": [
+          "REQ-003"
+        ],
+        "status": "covered"
+      }
+    ],
+    "columns": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003"
+    ],
+    "gap_count": 0,
+    "coverage_rate": 1.0
+  },
+  "extensions": {}
+}

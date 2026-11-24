@@ -1,0 +1,144 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "REAL",
+    "stage": "P6",
+    "produced_by": "req_builder",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "tasks": [
+      {
+        "task_id": "DEV-001",
+        "module": "MOD-001",
+        "module_id": "MOD-001",
+        "title": "实现讨论频道的消息收发与存储",
+        "depends_on": [],
+        "estimate_days": 2.0,
+        "owner_role": "dev_backend",
+        "acceptance": [
+          {
+            "ac_id": "AC-DEV-001-1",
+            "given": "",
+            "when": "",
+            "then": "提交讨论频道的消息收发与存储后，查询接口返回包含该条目的结果",
+            "type": "functional"
+          }
+        ],
+        "priority": "must",
+        "priority_reason": "P1 被 2 张卡依赖",
+        "priority_source": "rule",
+        "feature_refs": [
+          "FEA-001"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-001",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "status": "pending"
+      },
+      {
+        "task_id": "DEV-002",
+        "module": "MOD-002",
+        "module_id": "MOD-002",
+        "title": "实现讨论归档与全文检索",
+        "depends_on": [
+          "DEV-001"
+        ],
+        "estimate_days": 1.5,
+        "owner_role": "dev_frontend",
+        "acceptance": [
+          {
+            "ac_id": "AC-DEV-002-1",
+            "given": "",
+            "when": "",
+            "then": "提交讨论归档与全文检索后，查询接口返回包含该条目的结果",
+            "type": "functional"
+          }
+        ],
+        "priority": "must",
+        "priority_reason": "P1 被 1 张卡依赖",
+        "priority_source": "rule",
+        "feature_refs": [
+          "FEA-002"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-002",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "status": "pending"
+      },
+      {
+        "task_id": "DEV-003",
+        "module": "MOD-003",
+        "module_id": "MOD-003",
+        "title": "实现文件与结论的关联登记",
+        "depends_on": [
+          "DEV-002"
+        ],
+        "estimate_days": 2.0,
+        "owner_role": "dev_data",
+        "acceptance": [
+          {
+            "ac_id": "AC-DEV-003-1",
+            "given": "",
+            "when": "",
+            "then": "提交文件与结论的关联登记后，查询接口返回包含该条目的结果",
+            "type": "functional"
+          }
+        ],
+        "priority": "should",
+        "priority_reason": "P5 得分 0.57（用户价值 1.00 / 下游 0 / 工期压力 0.33）",
+        "priority_source": "rule",
+        "feature_refs": [
+          "FEA-003"
+        ],
+        "source_refs": [
+          "solution_comparison:FEA-003",
+          "design_spec:CON-001",
+          "design_spec:CON-002",
+          "design_spec:CON-003",
+          "conflict_register:CFL-001"
+        ],
+        "status": "pending"
+      }
+    ],
+    "summary": {
+      "task_count": 3,
+      "total_estimate_days": 5.5,
+      "priority": {
+        "must": 2,
+        "should": 1,
+        "could": 0,
+        "wont": 0
+      },
+      "modules": [
+        "MOD-001",
+        "MOD-002",
+        "MOD-003"
+      ]
+    },
+    "hard_validation": {
+      "T1_granularity": true,
+      "T2_unique_owner": true,
+      "T3_dep_target": true,
+      "T4_no_cycle": true,
+      "T5_acceptance": true,
+      "T6_traceable": true,
+      "T7_no_vague": true,
+      "T8_wave_file_rule": true,
+      "all_have_acceptance": true,
+      "all_have_acceptance_verifiable": true,
+      "error_gap_count": 0,
+      "all_tasks_traceable": true,
+      "no_dep_cycle": true
+    }
+  },
+  "extensions": {}
+}

@@ -1,0 +1,155 @@
+{
+  "meta": {
+    "schema_version": "1.0",
+    "run_id": "DEMO",
+    "stage": "P4",
+    "produced_by": "solution_gen",
+    "created_at": "2026-11-24T10:43:12+08:00"
+  },
+  "data": {
+    "feature_items": [
+      {
+        "feature_id": "FEA-001",
+        "title": "项目内讨论频道",
+        "source_ref": "problem_list:PRB-001"
+      },
+      {
+        "feature_id": "FEA-002",
+        "title": "讨论归档与检索",
+        "source_ref": "problem_list:PRB-002"
+      },
+      {
+        "feature_id": "FEA-003",
+        "title": "文件与结论关联",
+        "source_ref": "problem_list:PRB-003"
+      }
+    ],
+    "solutions": [
+      {
+        "solution_id": "SOL_A",
+        "strategy": "cost_first",
+        "feature_ids": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "constraints_ref": "flow.yaml#shared_constraints"
+      },
+      {
+        "solution_id": "SOL_B",
+        "strategy": "experience_first",
+        "feature_ids": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "constraints_ref": "flow.yaml#shared_constraints"
+      },
+      {
+        "solution_id": "SOL_C",
+        "strategy": "extensibility_first",
+        "feature_ids": [
+          "FEA-001",
+          "FEA-002",
+          "FEA-003"
+        ],
+        "constraints_ref": "flow.yaml#shared_constraints"
+      }
+    ],
+    "rows": [
+      {
+        "feature_id": "FEA-001",
+        "options": {
+          "SOL_A": {
+            "description": "复用开源组件",
+            "cost_estimate": 1,
+            "risk": "low"
+          },
+          "SOL_B": {
+            "description": "自研，交互优先",
+            "cost_estimate": 3,
+            "risk": "medium"
+          },
+          "SOL_C": {
+            "description": "抽象为可扩展中台",
+            "cost_estimate": 5,
+            "risk": "high"
+          }
+        },
+        "adopted": {
+          "solution_id": "SOL_B",
+          "interaction": true,
+          "implementation_from": "SOL_A",
+          "rationale": "交互取 B、实现取 A"
+        },
+        "source_refs": [
+          "conflict_register:CFL-001"
+        ]
+      },
+      {
+        "feature_id": "FEA-002",
+        "options": {
+          "SOL_A": {
+            "description": "复用开源组件",
+            "cost_estimate": 2,
+            "risk": "low"
+          },
+          "SOL_B": {
+            "description": "自研，交互优先",
+            "cost_estimate": 6,
+            "risk": "medium"
+          },
+          "SOL_C": {
+            "description": "抽象为可扩展中台",
+            "cost_estimate": 10,
+            "risk": "high"
+          }
+        },
+        "adopted": {
+          "solution_id": "SOL_A",
+          "interaction": false,
+          "implementation_from": "SOL_A",
+          "rationale": "交互取 B、实现取 A"
+        },
+        "source_refs": [
+          "conflict_register:CFL-001"
+        ]
+      },
+      {
+        "feature_id": "FEA-003",
+        "options": {
+          "SOL_A": {
+            "description": "复用开源组件",
+            "cost_estimate": 3,
+            "risk": "low"
+          },
+          "SOL_B": {
+            "description": "自研，交互优先",
+            "cost_estimate": 9,
+            "risk": "medium"
+          },
+          "SOL_C": {
+            "description": "抽象为可扩展中台",
+            "cost_estimate": 15,
+            "risk": "high"
+          }
+        },
+        "adopted": {
+          "solution_id": "SOL_A",
+          "interaction": false,
+          "implementation_from": "SOL_A",
+          "rationale": "交互取 B、实现取 A"
+        },
+        "source_refs": [
+          "conflict_register:CFL-001"
+        ]
+      }
+    ],
+    "adopted_ref": "baseline_decision",
+    "shared_constraints": [
+      "预算不超过既定上限",
+      "必须覆盖同一份功能清单 FEA-*"
+    ]
+  },
+  "extensions": {}
+}
