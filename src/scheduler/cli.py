@@ -300,8 +300,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--run-id", default=f"R{now_iso()[:10].replace('-', '')}")
     s.add_argument("--author", default="user")
     s.add_argument("--provider", default="mock", choices=["mock", "real"])
-    s.add_argument("--llm-provider", default="offline", choices=["offline", "agents"],
-                   help="模型来源：offline 不联网；agents 用 src/agents/providers.HttpModel")
+    s.add_argument("--llm-provider", default="offline", choices=["offline", "agents", "ark"],
+                   help="模型来源：offline 不联网；agents 用 B 的 HttpModel；ark 用 Chat Completions（ARK/LLM_* 环境变量）")
     s.add_argument("--llm-endpoint", default=None, help="模型网关地址（等价 B_MODEL_ENDPOINT）")
     s.add_argument("--llm-token", default=None, help="模型网关 token（等价 B_MODEL_TOKEN）")
     s.add_argument("--budget", type=int, default=None, help="全局 LLM 调用上限，默认 30")
