@@ -12,7 +12,7 @@
     "detected": 5,
     "hit_rate": 1.0,
     "false_positives": 0,
-    "max_cost_ms": 0.5
+    "max_cost_ms": 0.6
   },
   "results": [
     {
@@ -20,7 +20,7 @@
       "detected": true,
       "signal": "OBS-04 依赖成环",
       "detail": "环 2 张：DEV-001 → DEV-002 → DEV-001（find_cycle 另把下游 6 张也算进环里）",
-      "cost_ms": 0.5,
+      "cost_ms": 0.6,
       "false_positive": false,
       "injection": "DEV-001 → DEV-002（原方向 DEV-002 → DEV-001）"
     },
@@ -50,7 +50,7 @@
       "detected": true,
       "signal": "OBS-03 单卡重试超限",
       "detail": "超限任务 DEV-001（5 次调用，retry=4）",
-      "cost_ms": 0.2,
+      "cost_ms": 0.1,
       "false_positive": false,
       "retry_hits": [
         {

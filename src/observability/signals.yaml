@@ -2,6 +2,13 @@
 # 维护：D（质量评审员）｜归属：O3 判据与检出表
 # 约定：一个信号 = 证据 + 判定式 + 处置，三样缺一不可。
 #      判定式必须是纯函数（读事件流与产物，不调模型、不计预算），与 gate_rule.yaml 同构。
+#
+# 状态口径（答辩必答）：写进 yaml 不等于可执行，所以每条都带 status，三种取值——
+#   implemented —— 判定式已写成纯函数，且跑过故障注入（实现位置见 impl）
+#   wired       —— 判定式复用既有模块里的纯函数（validators / coverage），本层只做归一
+#   spec_only   —— 只有规格，缺埋点或缺数据，现在判不出来（缺什么见 blocked_by）
+# 现况：10 条中 5 条可执行、已由 FI-01~FI-05 逐条验证，另 5 条仍为规格。
+#      汇报时不许把 10 条都说成"已实现"——一句话版本见 docs/observability-signals.md §三。
 
 version: 1
 meta:
@@ -9,12 +16,15 @@ meta:
   scope: run-level
   rule_convention: "判定式只读 events.jsonl 与 artifacts/*.json，禁止调用模型"
   level_convention: "info=仅提示 / warn=需人注意 / block=必须干预（进等待人态）"
+  status_convention: "implemented=可执行且已验证 / wired=复用既有纯函数 / spec_only=仅规格"
 
 signals:
 
   - id: OBS-01
     name: 预算余量
     code: budget_headroom
+    status: implemented
+    impl: "src/observability/signals.py:budget_headroom"
     evidence:
       source: events
       filter: "event_type == 'budget.charged'"
@@ -35,6 +45,8 @@ signals:
   - id: OBS-02
     name: 阶段停留超时
     code: stage_dwell
+    status: spec_only
+    blocked_by: "缺跨 run 的历史 P95 基线；拍一个固定上限不算可复算，所以先不实现"
     evidence:
       source: events
       filter: "event_type in ('stage.enter', 'stage.exit')，按 stage 配对"
@@ -52,10 +64,13 @@ signals:
   - id: OBS-03
     name: 单卡重试超限
     code: task_retry
+    status: implemented
+    impl: "src/observability/signals.py:task_retry"
     evidence:
       source: events
       filter: "同一 task_id 在 task.dispatched 与 task.completed 之间的 model.call 次数"
       field: "count(model.call)"
+      note: "task.dispatched / task.completed 目前只有 demo 脚本会造，调度器不发；A 补上这两处埋点后，本例可从 fixture 检出升级为线上检出"
     rule: "retry(task) = count(model.call) - 1；超限 = retry > 3"
     thresholds:
       - when: "retry > 3"
@@ -68,6 +83,8 @@ signals:
   - id: OBS-04
     name: 依赖成环
     code: dep_cycle
+    status: wired
+    impl: "src/req_builder/validators.py:find_cycle（本层只做归一，未改其实现）"
     evidence:
       source: artifact
       path: "schedule.errors[] / dev_task_list"
@@ -85,6 +102,8 @@ signals:
   - id: OBS-05
     name: 依赖死锁
     code: deadlock
+    status: spec_only
+    blocked_by: "现网没有进入死锁的运行样本，run.blocked(reason=deadlock) 从未出现过，没有正样本就验不了误报"
     evidence:
       source: events
       filter: "event_type == 'run.blocked'"
@@ -101,6 +120,8 @@ signals:
   - id: OBS-06
     name: 发言趋同
     code: statement_similarity
+    status: implemented
+    impl: "src/observability/signals.py:statement_similarity（相似度复用 src/agents/core.py:estimate_similarity）"
     evidence:
       source: events
       filter: "event_type == 'guard.signal'"
@@ -118,6 +139,8 @@ signals:
   - id: OBS-07
     name: 角色沉默
     code: agent_silence
+    status: spec_only
+    blocked_by: "现网每个 run 只有 1 轮讨论、每人 1 条发言，算不出「连续 2 轮没说话」；需要多轮真实讨论数据"
     evidence:
       source: events
       filter: "event_type == 'agent.on_stage' / 'agent.statement'，按 agent_id 与 round 统计"
@@ -134,6 +157,8 @@ signals:
   - id: OBS-08
     name: 覆盖空缺
     code: coverage_gap
+    status: wired
+    impl: "src/req_builder/coverage.py:compute_coverage（本层只做归一，未改其实现）"
     evidence:
       source: artifact
       path: "coverage_matrix.gap_count / rows[]"
@@ -150,6 +175,8 @@ signals:
   - id: OBS-09
     name: 关键路径漂移
     code: schedule_drift
+    status: spec_only
+    blocked_by: "plan 有 schedule.waves（计划波次），但没有 task.completed 的实际波次与时间戳，两边对不上账"
     evidence:
       source: artifact + events
       path: "schedule.waves / schedule.total_days 与实际 task.completed 的波次对比"
@@ -167,7 +194,9 @@ signals:
   - id: OBS-10
     name: 并发失真
     code: concurrency_distortion
-    status: experimental
+    status: spec_only
+    status_note: experimental
+    blocked_by: "mock 运行里所有事件的 ts 落在同一秒内，event_id 序与 ts 序等价，判据恒不命中；要有真实墙钟耗时才有意义"
     evidence:
       source: events
       filter: "event_id 顺序与 ts 顺序"

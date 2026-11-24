@@ -52,24 +52,33 @@
 
 完整定义见 `src/observability/signals.yaml`，这里只列"看哪、判什么、怎么办"。
 
-判据不是纸面约定：`src/observability/signals.py` 是这份 yaml 的**可执行副本**，
-其中 OBS-01 / OBS-03 / OBS-06 三条已写成纯函数（只读事件流与产物、不调模型、无副作用），
-五例故障注入就是拿这三个函数判的。分工边界一句话：`src/scheduler/obs.py` 负责写（埋点），
-`src/observability/signals.py` 负责判。
+**先把话说清楚：写进 yaml 不等于能跑。** 十条里 **5 条有可执行的判定式、且已由 FI-01~FI-05
+逐条验证**，另外 5 条仍然是规格——缺埋点或缺数据，现在判不出来。每条在 yaml 里都标了
+`status`（`implemented` / `wired` / `spec_only`）和缺什么（`blocked_by`），文档这张表也照抄。
 
-| ID | 信号 | 证据来源 | 判定要点 | 等级 | 处置 |
-|---|---|---|---|---|---|
-| OBS-01 | 预算余量 | `budget.charged` 末条 / `global_limit` | 余量 < 20% 且未到 P7 | warn / block | 降并行、提前进 P7、或转人 |
-| OBS-02 | 阶段停留超时 | `stage.enter` / `stage.exit` 的 ts 差 | > 2× 历史 P95 | warn | 下钻该阶段最长 span |
-| OBS-03 | 单卡重试超限 | 卡内 `model.call` 次数 | > 3 次 | block | 改参数后单卡重试 |
-| OBS-04 | 依赖成环 | `schedule.errors` 的 `E_DEP_CYCLE` | 命中即报 | block | 退 P6，高亮环上节点 |
-| OBS-05 | 依赖死锁 | `run.blocked` reason=deadlock | ready 空但未结束 | block | 转人，导出 ready 集合 |
-| OBS-06 | 发言趋同 | `guard.signal` 的 similarity | > 0.85 判无效；单轮 ≥2 次 | warn | 灰蒙层 + 建议插质询 |
-| OBS-07 | 角色沉默 | 按 `agent_id` 数连续空轮 | ≥ 2 轮 | warn | 高亮 + 强制补发言 |
-| OBS-08 | 覆盖空缺 | `coverage_matrix.gap_count` | > 0 | block | 留白呈现，指出缺的 FEA |
-| OBS-09 | 关键路径漂移 | 实际完成波次 vs `schedule.waves` | 落后 ≥ 1 波 | warn | 甘特高亮漂移条 |
+分工边界一句话：`src/scheduler/obs.py` 负责写（埋点），`src/observability/signals.py` 负责判。
 
-实验性：OBS-10 并发失真（`event_id` 顺序与 `ts` 顺序不一致的区段）——接真模型、有真实耗时后再启用。
+| ID | 信号 | 证据来源 | 判定要点 | 等级 | 处置 | 状态 |
+|---|---|---|---|---|---|---|
+| OBS-01 | 预算余量 | `budget.charged` 末条 / `global_limit` | 余量 < 20% 且未到 P7 | warn / block | 降并行、提前进 P7、或转人 | **implemented** |
+| OBS-02 | 阶段停留超时 | `stage.enter` / `stage.exit` 的 ts 差 | > 2× 历史 P95 | warn | 下钻该阶段最长 span | spec_only（缺跨 run P95） |
+| OBS-03 | 单卡重试超限 | 卡内 `model.call` 次数 | > 3 次 | block | 改参数后单卡重试 | **implemented** |
+| OBS-04 | 依赖成环 | `schedule.errors` 的 `E_DEP_CYCLE` | 命中即报 | block | 退 P6，高亮环上节点 | **wired**（`find_cycle`） |
+| OBS-05 | 依赖死锁 | `run.blocked` reason=deadlock | ready 空但未结束 | block | 转人，导出 ready 集合 | spec_only（无正样本） |
+| OBS-06 | 发言趋同 | `guard.signal` 的 similarity | > 0.85 判无效；单轮 ≥2 次 | warn | 灰蒙层 + 建议插质询 | **implemented** |
+| OBS-07 | 角色沉默 | 按 `agent_id` 数连续空轮 | ≥ 2 轮 | warn | 高亮 + 强制补发言 | spec_only（只有 1 轮数据） |
+| OBS-08 | 覆盖空缺 | `coverage_matrix.gap_count` | > 0 | block | 留白呈现，指出缺的 FEA | **wired**（`compute_coverage`） |
+| OBS-09 | 关键路径漂移 | 实际完成波次 vs `schedule.waves` | 落后 ≥ 1 波 | warn | 甘特高亮漂移条 | spec_only（无实际波次） |
+
+实验性：OBS-10 并发失真（`event_id` 顺序与 `ts` 顺序不一致的区段）——mock 运行里所有事件的
+`ts` 落在同一秒内，两种排序等价，判据恒不命中；要等真模型跑出墙钟耗时才有意义。
+
+一句话版本（汇报时直接念）：
+
+> 十条信号里 5 条已可执行并逐条做过故障注入验证，另外 5 条明确标注了缺什么——
+> OBS-02 缺历史 P95、OBS-05 没有死锁正样本、OBS-07 只有单轮讨论数据、OBS-09/OBS-10 缺
+> 真实波次与墙钟耗时。**没有把规格冒充实现。**
+
 
 ---
 
